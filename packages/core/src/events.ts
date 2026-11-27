@@ -8,6 +8,7 @@ import { type MissionDecision, missionDecisionSchema } from "./mission-decision-
  */
 
 import { type ErrorInfo, type Reason, reason } from "./reason.js";
+import { SUBAGENTS_MAX_ITEMS } from "./subagents/schema.js";
 
 /** Version du schéma d'événements écrite dans chaque événement (`v`). */
 export const EVENT_SCHEMA_VERSION = 1;
@@ -155,6 +156,27 @@ export type EventPayload =
       done: boolean;
       proof: string;
       remaining: number;
+    }
+  | {
+      /**
+       * Sous-agents proposés par l'agent (ADR 0054) : en attente de la réponse de l'utilisateur.
+       * `items` : 1 à 4 volets, `id` attribué par le moteur, `name` court et unique.
+       */
+      kind: "subagents.proposed";
+      proposalId: string;
+      items: { id: string; name: string; goal: string }[];
+    }
+  | {
+      /**
+       * Réponse de l'utilisateur à une proposition de sous-agents (ADR 0054). `selected` : places
+       * approuvées (`description` à reprendre à l'identique dans l'appel Task), vide si refus ;
+       * `note` : texte libre de l'utilisateur, le cas échéant.
+       */
+      kind: "subagents.decided";
+      proposalId: string;
+      decision: "accepted" | "declined";
+      selected: { id: string; description: string }[];
+      note?: string;
     }
   | {
       /** Arrêt d'urgence d'un projet posé (`on`) ou levé (`off`) par un geste humain (ADR 0041). */
@@ -412,6 +434,30 @@ function shape(fields: Record<string, FieldType>): PayloadValidator {
   };
 }
 
+/**
+ * Tableau d'objets dont les champs sont des chaînes : motif du premier champ fautif (`name.i.champ`),
+ * ou `null`. `min` / `max` bornent le nombre d'éléments.
+ */
+function stringObjects(
+  name: string,
+  value: unknown,
+  fields: readonly string[],
+  min: number,
+  max: number,
+): Reason | null {
+  if (!Array.isArray(value) || value.length < min || value.length > max)
+    return reason("event.invalidField", { field: name });
+  for (const [index, entry] of value.entries()) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry))
+      return reason("event.invalidField", { field: `${name}.${index}` });
+    for (const field of fields) {
+      if (typeof (entry as Obj)[field] !== "string")
+        return reason("event.invalidField", { field: `${name}.${index}.${field}` });
+    }
+  }
+  return null;
+}
+
 const AUTH_FIELDS = shape({
   apiKeySource: "string?",
   subscriptionType: "string|null?",
@@ -527,6 +573,19 @@ export const EVENT_VALIDATORS: { [K in EventKind]: PayloadValidator } = {
     proof: "string",
     remaining: "uint",
   }),
+  "subagents.proposed": (p) =>
+    shape({ proposalId: "string" })(p) ??
+    stringObjects("items", p.items, ["id", "name", "goal"], 1, SUBAGENTS_MAX_ITEMS),
+  // Un accord retient au moins une place ; un refus n'en retient aucune.
+  "subagents.decided": (p) =>
+    shape({ proposalId: "string", decision: "enum:accepted,declined", note: "string?" })(p) ??
+    stringObjects(
+      "selected",
+      p.selected,
+      ["id", "description"],
+      p.decision === "accepted" ? 1 : 0,
+      p.decision === "accepted" ? SUBAGENTS_MAX_ITEMS : 0,
+    ),
   "approval.requested": shape({
     toolUseId: "string",
     tool: "string",

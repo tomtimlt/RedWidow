@@ -91,6 +91,9 @@ export const DEFAULT_POLICY: Policy = {
     { tool: "mcp__desk__record_test", decision: "allow" },
     // Matrice de couverture : annotation en mémoire du run, mêmes garanties que record_test.
     { tool: "mcp__desk__record_coverage", decision: "allow" },
+    // Proposition de sous-agents (ADR 0054) : exposée seulement en mode « Sous-agents », l'humain
+    // répond sur la carte. Elle ne lance rien : seul `Task`, soumis à la règle structurelle de la gate, le fait.
+    { tool: "mcp__desk__propose_subagents", decision: "allow" },
     // Écrit un brouillon de fiche programme (fichier du projet) : jamais en allow, toujours demandé.
     { tool: "mcp__desk__program_draft", decision: "ask" },
     // Contrôle d'étape et démontage (ADR 0041) : écrivent un fichier du projet, jamais en allow.

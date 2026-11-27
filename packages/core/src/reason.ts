@@ -57,6 +57,14 @@ export const REASON_CODES = [
   "bypass.disabled",
   "bypass.expired",
   "guard.unrouted",
+  // Sous-agents proposés par l'agent et validés par l'utilisateur (ADR 0054)
+  "subagents.disabled",
+  "subagents.nested",
+  "subagents.not_approved",
+  "subagents.limit",
+  "subagents.approved",
+  "subagents.pendingProposal",
+  "subagents.invalidProposal",
   // Outils inattendus annoncés par le SDK
   "sdk.unexpectedTool",
   // Authentification

@@ -68,6 +68,21 @@ const SAMPLES: { [K in EventKind]: Extract<EventPayload, { kind: K }> } = {
     agentToolUseId: "a",
     agentId: "ag",
   },
+  "subagents.proposed": {
+    kind: "subagents.proposed",
+    proposalId: "p1",
+    items: [
+      { id: "s1", name: "Domaines", goal: "Énumérer les sous-domaines" },
+      { id: "s2", name: "API", goal: "Cartographier les routes" },
+    ],
+  },
+  "subagents.decided": {
+    kind: "subagents.decided",
+    proposalId: "p1",
+    decision: "accepted",
+    selected: [{ id: "s2", description: "API" }],
+    note: "seulement l'API",
+  },
   "approval.decided": {
     kind: "approval.decided",
     toolUseId: "t",
@@ -217,6 +232,17 @@ describe("schéma d'événements", () => {
     expect(validateEvent(event(payload))).toBeNull();
   });
 
+  it("un subagents.decided refusé ne retient aucune place, un accepté en retient au moins une", () => {
+    const declined = { ...SAMPLES["subagents.decided"], decision: "declined", selected: [] };
+    expect(validateEvent(event(declined))).toBeNull();
+    expect(validateEvent(event({ ...declined, note: undefined }))).toBeNull();
+    const empty = { ...SAMPLES["subagents.decided"], selected: [] };
+    expect(validateEvent(event(empty))).toEqual({
+      code: "event.invalidField",
+      params: { field: "selected" },
+    });
+  });
+
   it("un bypass.changed off n'exige pas de bornes, un on les exige", () => {
     const off = { ...SAMPLES["bypass.changed"], state: "off" };
     expect(validateEvent(event(off, { since: undefined, expiresAt: undefined }))).toBeNull();
@@ -241,6 +267,23 @@ describe("schéma d'événements", () => {
       ["campaign.step", { evidenceIds: "e1" }],
       ["teardown.state", { remaining: -1 }],
       ["teardown.state", { done: "oui" }],
+      ["subagents.proposed", { proposalId: 1 }],
+      ["subagents.proposed", { items: [] }],
+      ["subagents.proposed", { items: "s1" }],
+      ["subagents.proposed", { items: [{ id: "s1", name: "A" }] }],
+      ["subagents.proposed", { items: [{ id: "s1", name: 1, goal: "x" }] }],
+      [
+        "subagents.proposed",
+        {
+          items: ["a", "b", "c", "d", "e"].map((name, i) => ({ id: `s${i}`, name, goal: "x" })),
+        },
+      ],
+      ["subagents.decided", { decision: "maybe" }],
+      ["subagents.decided", { selected: [] }],
+      ["subagents.decided", { selected: [{ id: "s1" }] }],
+      ["subagents.decided", { selected: "s1" }],
+      ["subagents.decided", { note: 3 }],
+      ["subagents.decided", { decision: "declined" }],
       ["bypass.changed", { state: "maybe" }],
       ["bypass.changed", { reason: "texte brut" }],
       ["bypass.changed", { since: "1" }],

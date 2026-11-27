@@ -6,7 +6,14 @@ import type { DockerToolSpec } from "./docker/tool-specs.js";
 import { recordStepSchema, recordTeardownSchema } from "./engagement/campaign-schema.js";
 import type { MissionDesk, ProgramDraftInput } from "./mission-desk.js";
 import { capOutput } from "./output.js";
+import { CodedError } from "./reason.js";
 import { SKILL_SOURCES } from "./skill-sources.js";
+import type { SubagentBoard } from "./subagents/board.js";
+import {
+  firstIssuePath,
+  proposeSubagentsSchema,
+  proposeSubagentsShape,
+} from "./subagents/schema.js";
 
 export { AGENT_PROFILES, type AgentProfile, isAgentProfile } from "./agent-profiles.js";
 
@@ -40,7 +47,14 @@ export function deskInstructions(profile?: string): string {
       : "Aucun profil spécialisé imposé.")
   );
 }
-export function deskToolSpecs(desk?: MissionDesk): DockerToolSpec[] {
+/**
+ * Consigne du mode « Sous-agents » (ADR 0054), ajoutée à la consigne système seulement quand le mode
+ * est actif pour la course. La gate ne se fie pas à ce texte : elle n'admet que les places approuvées.
+ */
+export const SUBAGENTS_GUIDANCE =
+  "Sous-agents (mode activé pour ce chat) : si la demande se découpe en volets indépendants, appeler propose_subagents (1 à 4 éléments, chacun avec un nom court unique et un objectif) puis attendre la réponse de l'utilisateur, sans rien lancer avant. Lancer ensuite UNIQUEMENT les places retenues (selected), avec l'outil Task, subagent_type « redwidow » et la description exacte reçue, tous dans un même message pour qu'ils tournent en parallèle, puis faire la synthèse de leurs résultats. Sans accord (refus, ou texte libre de l'utilisateur à la place d'un choix), continuer seul : lancer un sous-agent exige une nouvelle proposition acceptée. Un sous-agent ne lance jamais d'autre sous-agent.";
+
+export function deskToolSpecs(desk?: MissionDesk, subagents?: SubagentBoard): DockerToolSpec[] {
   const input = {
     profile: z.enum(Object.keys(AGENT_PROFILES).filter(isAgentProfile)),
     section: z.string().min(1).max(120).optional(),
@@ -98,6 +112,42 @@ export function deskToolSpecs(desk?: MissionDesk): DockerToolSpec[] {
       },
     },
   ];
+  // Exposé seulement quand le mode « Sous-agents » est actif pour la course (le tableau existe).
+  if (subagents)
+    specs.push({
+      name: "propose_subagents",
+      description:
+        "Proposer à l'utilisateur de découper la demande en 1 à 4 sous-agents indépendants : name (nom court et unique, repris comme description de l'appel Task) et goal (objectif du volet). L'outil attend la réponse de l'utilisateur : accepted avec les places retenues (id, description à reprendre à l'identique dans Task) ou declined (note éventuelle). Une seule proposition à la fois. Aucune exécution : seul l'outil Task, avec une description retenue, lance un sous-agent.",
+      input: proposeSubagentsShape,
+      readOnly: false,
+      async run(raw, ctx) {
+        const parsed = proposeSubagentsSchema.safeParse(raw);
+        if (!parsed.success) {
+          const field = firstIssuePath(parsed.error);
+          throw new CodedError(
+            "subagents.invalidProposal",
+            field === undefined ? undefined : { field },
+          );
+        }
+        const outcome = await subagents.propose(parsed.data.items, {
+          parentId: ctx.parentId,
+          signal: ctx.signal,
+        });
+        return JSON.stringify(
+          outcome.decision === "accepted"
+            ? {
+                decision: "accepted",
+                selected: outcome.selected,
+                ...(outcome.note !== undefined && { note: outcome.note }),
+              }
+            : {
+                decision: "declined",
+                ...(outcome.note !== undefined && { note: outcome.note }),
+                hint: "Aucun sous-agent n'est lancé. Pour en lancer, appeler de nouveau propose_subagents et attendre l'accord de l'utilisateur.",
+              },
+        );
+      },
+    });
   if (desk)
     specs.push(
       {

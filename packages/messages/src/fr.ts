@@ -157,6 +157,19 @@ export const reasons: Catalog = {
   "bypass.expired": () => "bypass des approbations expiré",
   "guard.unrouted": (p) =>
     `appel non routé par la garde (canUseTool appelé sans décision PreToolUse : ${text(p.tool)}, ${text(p.toolUseId)})`,
+  "subagents.disabled": () =>
+    "sous-agents indisponibles : le mode « Sous-agents » n'est pas actif pour ce chat (ou la course est arrêtée)",
+  "subagents.nested": () =>
+    "un sous-agent ne peut pas en lancer un autre : pas d'imbrication de sous-agents",
+  "subagents.not_approved": (p) =>
+    `la description « ${text(p.description)} » ne correspond à aucun sous-agent approuvé et non lancé : appeler propose_subagents, attendre l'accord de l'utilisateur, puis reprendre la description exacte d'une place retenue`,
+  "subagents.limit": (p) =>
+    `${text(p.max)} sous-agents sont déjà en cours : attendre la fin de l'un d'eux avant d'en lancer un autre`,
+  "subagents.approved": (p) => `sous-agent « ${text(p.description)} » approuvé par l'utilisateur`,
+  "subagents.pendingProposal": () =>
+    "une proposition de sous-agents attend déjà la réponse de l'utilisateur : attendre sa réponse avant d'en faire une autre",
+  "subagents.invalidProposal": (p) =>
+    `proposition de sous-agents invalide${p.field ? ` (champ : ${text(p.field)})` : ""} : 1 à 4 éléments, chacun avec un nom court unique et un objectif`,
 
   "sdk.unexpectedTool": (p) =>
     `outil de shell inattendu annoncé par le SDK (${text(p.tool)}) : run arrêté`,

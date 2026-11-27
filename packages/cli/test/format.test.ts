@@ -27,6 +27,42 @@ describe("formatEvent", () => {
     expect(formatEvent(e, opts)).toBe('tool      ↳ mcp__docker__ps {"all":true}');
   });
 
+  it("rend les événements des sous-agents (proposition, accord, refus)", () => {
+    const proposed = r.emit({
+      kind: "subagents.proposed",
+      proposalId: "p1",
+      items: [
+        { id: "s1", name: "Domaines", goal: "Énumérer" },
+        { id: "s2", name: "API", goal: "Cartographier" },
+      ],
+    });
+    expect(formatEvent(proposed, opts)).toBe("subagents proposition Domaines, API");
+    expect(formatEvent(proposed, { ...opts, locale: "en" })).toBe(
+      "subagents proposal Domaines, API",
+    );
+    const accepted = r.emit({
+      kind: "subagents.decided",
+      proposalId: "p1",
+      decision: "accepted",
+      selected: [{ id: "s2", description: "API" }],
+    });
+    expect(formatEvent(accepted, opts)).toBe("subagents acceptés API");
+    const declined = r.emit({
+      kind: "subagents.decided",
+      proposalId: "p1",
+      decision: "declined",
+      selected: [],
+      note: "pas\u0007 maintenant",
+    });
+    expect(formatEvent(declined, opts)).toBe("subagents refusés pas maintenant");
+    expect(
+      formatEvent(
+        r.emit({ kind: "subagents.decided", proposalId: "p1", decision: "declined", selected: [] }),
+        { ...opts, locale: "en" },
+      ),
+    ).toBe("subagents declined");
+  });
+
   it("masque la sortie des processus sauf en verbose", () => {
     const e = r.emit({ kind: "process.output", stream: "stdout", line: "hello" });
     expect(formatEvent(e, opts)).toBeNull();

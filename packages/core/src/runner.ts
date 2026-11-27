@@ -83,6 +83,12 @@ export interface RunContext {
   halted?: () => boolean;
   /** Plan de campagne et démontage du projet actif (ADR 0041) : `record_step`, `record_teardown`, `mission_context`. */
   campaign?: import("./engagement/campaign-port.js").CampaignPort;
+  /**
+   * Tableau des sous-agents de la course (ADR 0054), présent seulement si le mode est actif : le même
+   * que celui de la gate. L'adaptateur le passe à `deskToolSpecs` (outil `propose_subagents`) et expose
+   * `Task` ; il fournit `agentId` à la gate pour les appels d'un sous-agent.
+   */
+  subagents?: import("./subagents/board.js").SubagentBoard;
   onMissionContext?: (snapshot: import("./mission-desk.js").MissionContext) => void;
 }
 

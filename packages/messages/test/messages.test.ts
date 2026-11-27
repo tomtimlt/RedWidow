@@ -304,6 +304,20 @@ describe("eventLabel", () => {
       tool: "Bash",
       input: { command: "ls" },
     },
+    "subagents.proposed": {
+      kind: "subagents.proposed",
+      proposalId: "p1",
+      items: [
+        { id: "s1", name: "Domaines", goal: "Énumérer" },
+        { id: "s2", name: "API", goal: "Cartographier" },
+      ],
+    },
+    "subagents.decided": {
+      kind: "subagents.decided",
+      proposalId: "p1",
+      decision: "accepted",
+      selected: [{ id: "s2", description: "API" }],
+    },
     "approval.decided": {
       kind: "approval.decided",
       toolUseId: "t",
@@ -455,6 +469,40 @@ describe("eventLabel", () => {
       "step s1 : success (T1566)",
     );
     expect(eventLabel(emit(payloads["teardown.state"]))).toBe("démontage t1 : ok (2)");
+  });
+
+  it("libelle subagents.proposed et subagents.decided", () => {
+    expect(eventLabel(emit(payloads["subagents.proposed"]))).toBe(
+      "Sous-agents proposés : Domaines, API",
+    );
+    expect(eventLabel(emit(payloads["subagents.proposed"]), { locale: "en" })).toBe(
+      "Subagents proposed : Domaines, API",
+    );
+    expect(eventLabel(emit(payloads["subagents.decided"]))).toBe("Sous-agents acceptés : API");
+    const declined = emit({
+      kind: "subagents.decided",
+      proposalId: "p1",
+      decision: "declined",
+      selected: [],
+      note: "pas maintenant",
+    });
+    expect(eventLabel(declined)).toBe("Sous-agents refusés : pas maintenant");
+    expect(eventLabel(declined, { locale: "en" })).toBe("Subagents declined : pas maintenant");
+  });
+
+  it("formate les motifs des sous-agents dans les deux langues", () => {
+    const description = "Fuzzing";
+    expect(formatReason({ code: "subagents.not_approved", params: { description } })).toContain(
+      "« Fuzzing »",
+    );
+    expect(formatReason({ code: "subagents.limit", params: { max: 4 } }, "en")).toContain(
+      "4 subagents",
+    );
+    expect(formatReason({ code: "subagents.approved", params: { description } })).toBe(
+      "sous-agent « Fuzzing » approuvé par l'utilisateur",
+    );
+    expect(formatReason({ code: "subagents.nested" })).toContain("imbrication");
+    expect(formatReason({ code: "subagents.disabled" }, "en")).toContain("not active");
   });
 
   it("décrit le mode d'authentification", () => {

@@ -116,6 +116,16 @@ export function eventLabel(e: EngineEvent, options: LabelOptions = {}): string {
       );
     case "teardown.state":
       return clip(`${t.teardown} ${e.itemId} : ${e.done ? "ok" : "ko"} (${e.remaining})`);
+    case "subagents.proposed":
+      return clip(
+        `${locale === "en" ? "Subagents proposed" : "Sous-agents proposés"} : ${e.items.map((item) => item.name).join(", ")}`,
+      );
+    case "subagents.decided":
+      return clip(
+        e.decision === "accepted"
+          ? `${locale === "en" ? "Subagents accepted" : "Sous-agents acceptés"} : ${e.selected.map((place) => place.description).join(", ")}`
+          : `${locale === "en" ? "Subagents declined" : "Sous-agents refusés"}${e.note === undefined ? "" : ` : ${e.note}`}`,
+      );
     case "turn.finished":
       return `${t.turn} ${e.turns} · ${e.status} · $${e.costUsd.toFixed(4)}`;
     case "continuation.auto":

@@ -77,6 +77,12 @@ export function formatEvent(
       return `${tag(e.result === "success" ? "green" : e.result === "failed" ? "red" : "yellow", "step")} ${paint("dim", `${e.stepId} ${e.result}${e.technique ? ` ${e.technique}` : ""}`)}`;
     case "teardown.state":
       return `${tag("green", "teardown")} ${paint("dim", `${e.itemId} (${e.remaining})`)}`;
+    case "subagents.proposed":
+      return `${tag("yellow", "subagents")} ${t("proposition", "proposal")} ${paint("dim", stripControl(e.items.map((item) => item.name).join(", ")))}`;
+    case "subagents.decided":
+      return e.decision === "accepted"
+        ? `${tag("green", "subagents")} ${t("acceptés", "accepted")} ${paint("dim", stripControl(e.selected.map((place) => place.description).join(", ")))}`
+        : `${tag("yellow", "subagents")} ${t("refusés", "declined")}${e.note === undefined ? "" : ` ${paint("dim", stripControl(e.note))}`}`;
     case "tool.result": {
       const more = e.truncated
         ? paint("dim", t(` [tronqué : ${e.bytes} octets]`, ` [truncated: ${e.bytes} bytes]`))

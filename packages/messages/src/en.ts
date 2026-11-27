@@ -368,6 +368,18 @@ export const reasons: Catalog = {
       .join(", ")}`,
   "guard.unrouted": (p) =>
     `call not routed through the guard (canUseTool called without a PreToolUse decision: ${text(p.tool)}, ${text(p.toolUseId)})`,
+  "subagents.disabled": () =>
+    "subagents unavailable: the Subagents mode is not active for this chat (or the run is stopped)",
+  "subagents.nested": () => "a subagent cannot launch another one: no nested subagents",
+  "subagents.not_approved": (p) =>
+    `description "${text(p.description)}" matches no approved, unlaunched subagent: call propose_subagents, wait for the user's approval, then reuse the exact description of an accepted slot`,
+  "subagents.limit": (p) =>
+    `${text(p.max)} subagents are already running: wait for one to finish before launching another`,
+  "subagents.approved": (p) => `subagent "${text(p.description)}" approved by the user`,
+  "subagents.pendingProposal": () =>
+    "a subagent proposal is already waiting for the user's answer: wait for it before making another",
+  "subagents.invalidProposal": (p) =>
+    `invalid subagent proposal${p.field ? ` (field: ${text(p.field)})` : ""}: 1 to 4 items, each with a short unique name and a goal`,
   "auth.failed": () =>
     "authentication failed: run 'claude' then /login (or 'claude setup-token' and export CLAUDE_CODE_OAUTH_TOKEN), or set ANTHROPIC_API_KEY",
   "auth.orgNotAllowed": () =>

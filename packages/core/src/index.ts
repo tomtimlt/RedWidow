@@ -65,6 +65,8 @@ export * from "./recorder.js";
 export * from "./redact.js";
 export * from "./runner.js";
 export * from "./sanitize.js";
+export * from "./subagents/board.js";
+export * from "./subagents/schema.js";
 export * from "./supervision.js";
 export * from "./tasks/tools.js";
 export * from "./test-accounts.js";

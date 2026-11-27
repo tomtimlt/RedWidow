@@ -61,6 +61,8 @@ export const KIND_CLASS: Record<EventKind, string> = {
   "campaign.state": "k-approval",
   "campaign.step": "k-tool",
   "teardown.state": "k-tool",
+  "subagents.proposed": "k-approval",
+  "subagents.decided": "k-approval",
   "turn.finished": "k-run",
   "continuation.auto": "k-run",
   "continuation.waitingHuman": "k-run",

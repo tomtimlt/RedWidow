@@ -2,6 +2,7 @@ import type { Decision } from "../events.js";
 import { isProgramShellTool } from "../program/scope.js";
 import { errorInfo, type Reason, reason } from "../reason.js";
 import type { Recorder } from "../recorder.js";
+import { isSubagentTool, type SubagentBoard } from "../subagents/board.js";
 import { READ_URL_TOOL } from "../web/guard.js";
 import {
   BYPASS_MAX_MS,
@@ -26,6 +27,12 @@ export interface ApprovalRequest {
   toolUseId: string;
   tool: string;
   input: Record<string, unknown>;
+  /**
+   * Présent quand l'appel vient d'un sous-agent (Claude : `agent_id` du hook PreToolUse ; OpenCode :
+   * session enfant). La règle des sous-agents (ADR 0054) en déduit « pas d'imbrication ». Fixé par
+   * l'adaptateur seulement, jamais par l'entrée de l'outil.
+   */
+  agentId?: string;
 }
 
 /** Portée d'une autorisation : `once` (défaut), `session` (cette gate) ou `always` (politique utilisateur). */
@@ -91,6 +98,11 @@ export interface ApprovalGateOptions {
   engagement?: EngagementProvider;
   /** Interrupteur du Bypass (ADR 0006) ; absent → aucun Bypass. Relu à chaque décision. */
   bypass?: BypassSwitch;
+  /**
+   * Tableau des sous-agents de la course (ADR 0054) ; absent → mode inactif : tout appel `Task` est
+   * refusé (`subagents.disabled`). Présent : la règle structurelle des sous-agents s'applique.
+   */
+  subagents?: SubagentBoard;
   /** Horloge des décisions, en ms epoch (défaut : `Date.now`). */
   now?: () => number;
 }
@@ -224,6 +236,7 @@ export function createApprovalGate({
   now,
   program,
   engagement,
+  subagents,
 }: ApprovalGateOptions): ApprovalGate {
   /** Autorisations de session. Consultées seulement face à un verdict « ask » mémorisable. */
   const session = new Set<string>();
@@ -345,6 +358,35 @@ export function createApprovalGate({
     },
     async decide(request, signal, parentId = null) {
       const bypassActive = observeBypass(parentId);
+
+      // Sous-agents (ADR 0054) : règle structurelle évaluée AVANT la politique, pour tout appel `Task`.
+      // Elle ne dépend d'aucun texte du modèle, seulement des places approuvées par l'utilisateur, et
+      // tranche seule : jamais de seconde demande, de règle mémorisée ni de Bypass (le test `override`
+      // ci-dessous n'est pas atteint). L'accord d'une place est celui de l'humain, déjà donné sur la carte.
+      if (isSubagentTool(request.tool)) {
+        const verdict: ApprovalOutcome = subagents
+          ? {
+              ...subagents.admitTask({
+                toolUseId: request.toolUseId,
+                input: request.input,
+                ...(request.agentId !== undefined && { agentId: request.agentId }),
+              }),
+              source: "policy",
+            }
+          : { decision: "deny", reason: reason("subagents.disabled"), source: "policy" };
+        recorder.emit(
+          {
+            kind: "approval.decided",
+            toolUseId: request.toolUseId,
+            decision: verdict.decision,
+            source: verdict.source,
+            reason: verdict.reason,
+          },
+          parentId,
+        );
+        return verdict;
+      }
+
       // Même contexte que `evaluatePolicy` (défaut : répertoire courant), partagé avec le Bypass.
       const ctx: PolicyContext = {
         ...(workspace ?? { cwd: process.cwd() }),
