@@ -1,5 +1,5 @@
 import type { SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk";
-import type { Correlation, MissionDesk, Recorder } from "@warband/core";
+import type { Correlation, MissionDesk, Recorder, SubagentBoard } from "@warband/core";
 
 /** Définition d'outil MCP quelconque (le schéma zod varie d'un outil à l'autre). */
 // biome-ignore lint/suspicious/noExplicitAny: le SDK type `tools` avec `SdkMcpToolDefinition<any>[]`.
@@ -18,6 +18,8 @@ export interface ToolContext {
   accounts?: import("@warband/core").TestAccounts;
   recorder: Recorder;
   missionDesk?: MissionDesk;
+  /** Tableau des sous-agents (ADR 0054), présent seulement si le mode est actif pour la course. */
+  subagents?: SubagentBoard;
   /**
    * Id de l'événement `tool.requested` à utiliser comme parent des `process.*`
    * d'un appel (nom complet `mcp__<serveur>__<outil>`), ou `null` pour aucun.

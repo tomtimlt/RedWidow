@@ -39,6 +39,7 @@ import {
 } from "@warband/core";
 import { formatReason } from "@warband/messages";
 import { ToolCallRegistry, toolUseIdFromExtra } from "./correlation.js";
+import { SUBAGENT_LAUNCH_TOOLS, subagentDefinitions } from "./subagents.js";
 import type { ResolvedCall, Toolset } from "./toolset.js";
 
 /** Signature minimale de `query` du SDK, injectable pour les tests. */
@@ -104,6 +105,8 @@ export interface SdkRunnerOptions {
     | "executable"
     | "settings"
     | "managedSettings"
+    // Sous-agents (ADR 0054) : seul le moteur définit `agents` (l'agent `redwidow`, mode actif seulement).
+    | "agents"
     // Pilotés par `RunInput` (ou par le mode d'authentification), jamais par ici.
     | "env"
     | "resume"
@@ -384,7 +387,7 @@ function missionPrompt(
 async function runWithSdkWithDesk(
   options: SdkRunnerOptions,
   input: RunInput,
-  { recorder, gate, signal, onMissionContext, accounts }: RunContext,
+  { recorder, gate, signal, onMissionContext, accounts, subagents }: RunContext,
   missionDesk?: MissionDesk,
 ): Promise<RunSummary> {
   const { prompt, cwd } = input;
@@ -488,6 +491,9 @@ async function runWithSdkWithDesk(
               /^mcp__(?:web__http_request|(?:kali|exegol)__(?:exec|task_start))$/.test(tool)
                 ? accounts.effectiveInput(tool, input)
                 : input,
+            // Appel d'un sous-agent : la gate refuse alors l'imbrication (ADR 0054). Défini = sous-agent,
+            // indépendamment du contenu de `tool_input`.
+            ...(agentId !== undefined && { agentId }),
           },
           signal,
           parent.id,
@@ -559,15 +565,19 @@ async function runWithSdkWithDesk(
   };
 
   const mcpServers: Record<string, McpSdkServerConfigWithInstance> = {};
+  /** Noms complets des outils MCP du moteur : le sous-agent les reçoit comme l'agent principal. */
+  const mcpToolNames: string[] = [];
   let webAvailable = false;
   for (const set of options.toolsets ?? []) {
     const tools = set.create({
       ...(accounts && { accounts: accounts }),
       recorder,
       ...(missionDesk && { missionDesk }),
+      ...(subagents && { subagents }),
       resolveCall,
       resolveParent: (toolName, args, extra) => resolveCall(toolName, args, extra).parentId,
     });
+    for (const tool of tools) mcpToolNames.push(`mcp__${set.name}__${tool.name}`);
     for (const tool of tools) {
       if (!["kali", "exegol"].includes(set.name) || !["exec", "task_start"].includes(tool.name))
         continue;
@@ -616,6 +626,31 @@ async function runWithSdkWithDesk(
   );
   if (options.bash === true) builtinTools.push("Bash");
 
+  // Sous-agents (ADR 0054), mode actif seulement : l'outil de lancement rejoint les outils exposés et le
+  // moteur définit l'agent `redwidow` (mêmes outils que l'agent principal, sans lancement ni orchestration).
+  // Mode inactif : ni outil de lancement ni clé `agents`, configuration inchangée.
+  const disallowedTools = [
+    ...(options.sdkOptions?.disallowedTools ?? []),
+    ...(options.bash === true ? [] : [BASH_TOOL]),
+    POWERSHELL_TOOL,
+  ];
+  const subagentOptions: Pick<Options, "agents"> = subagents
+    ? {
+        agents: subagentDefinitions(
+          [
+            ...builtinTools,
+            ...mcpToolNames,
+            // Serveurs MCP fournis par l'hôte : leurs outils ne sont pas énumérables, on les désigne par serveur.
+            ...Object.keys(options.sdkOptions?.mcpServers ?? {})
+              .filter((name) => !(name in mcpServers))
+              .map((name) => `mcp__${name}`),
+          ],
+          disallowedTools,
+        ),
+      }
+    : {};
+  const exposedTools = subagents ? [...builtinTools, ...SUBAGENT_LAUNCH_TOOLS] : builtinTools;
+
   // Défense en profondeur : même contourné par un cast, `sdkOptions` ne peut pas poser ces options.
   const {
     env: _env,
@@ -624,6 +659,7 @@ async function runWithSdkWithDesk(
     effort: _effort,
     maxBudgetUsd: _maxBudgetUsd,
     systemPrompt: _systemPrompt,
+    agents: _agents,
     extraArgs: _extraArgs,
     pathToClaudeCodeExecutable: _pathToClaudeCodeExecutable,
     spawnClaudeCodeProcess: _spawnClaudeCodeProcess,
@@ -645,12 +681,9 @@ async function runWithSdkWithDesk(
     strictMcpConfig: true,
     permissionMode: "default",
     allowedTools: [],
-    tools: builtinTools,
-    disallowedTools: [
-      ...(options.sdkOptions?.disallowedTools ?? []),
-      ...(options.bash === true ? [] : [BASH_TOOL]),
-      POWERSHELL_TOOL,
-    ],
+    tools: exposedTools,
+    disallowedTools,
+    ...subagentOptions,
     hooks: {
       ...options.hooks,
       PreToolUse: [

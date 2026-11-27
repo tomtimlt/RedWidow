@@ -12,13 +12,16 @@ import {
   buildGraph,
   createApprovalGate,
   createRecorder,
+  createSubagentBoard,
   DEFAULT_POLICY,
   type EngineEvent,
   type Policy,
+  type SubagentBoard,
 } from "@warband/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createSdkRunner,
+  deskToolset,
   dockerToolset,
   type QueryFn,
   type SdkRunnerOptions,
@@ -126,10 +129,23 @@ interface RunArgs extends SdkRunnerOptions {
   signal?: AbortSignal;
   /** Binaire docker : active le toolset docker (absent = aucun toolset docker). */
   docker?: { bin: string; argsPrefix: readonly string[] };
+  /** Tableau des sous-agents (ADR 0054) : présent = mode « Sous-agents » actif. */
+  subagents?: SubagentBoard;
 }
 
 const runAgent = (a: RunArgs) => {
-  const { prompt, recorder, gate, cwd = "/w", model, maxTurns, signal, docker, ...rest } = a;
+  const {
+    prompt,
+    recorder,
+    gate,
+    cwd = "/w",
+    model,
+    maxTurns,
+    signal,
+    docker,
+    subagents,
+    ...rest
+  } = a;
   const toolsets = [
     ...(docker ? [dockerToolset({ binary: docker.bin, argsPrefix: docker.argsPrefix })] : []),
     ...(rest.toolsets ?? []),
@@ -142,7 +158,7 @@ const runAgent = (a: RunArgs) => {
       ...(model !== undefined && { model }),
       ...(maxTurns !== undefined && { maxTurns }),
     },
-    { recorder, gate, ...(signal && { signal }) },
+    { recorder, gate, ...(signal && { signal }), ...(subagents && { subagents }) },
   );
 };
 
@@ -1199,4 +1215,273 @@ it("transmet l’image au SDK sans la journaliser", async () => {
   expect(JSON.stringify(messages)).toContain(image.data);
   expect(JSON.stringify(events)).not.toContain(image.data);
   expect(events.find((e) => e.kind === "run.started")).toMatchObject({ prompt: "observer" });
+});
+
+describe("sous-agents (ADR 0054) : adaptateur Claude", () => {
+  const DRAFTS = [
+    { name: "Domaines", goal: "Énumérer les sous-domaines" },
+    { name: "API", goal: "Cartographier les routes" },
+  ];
+  const BASE_TOOLS = ["Read", "Glob", "Grep"];
+
+  /** Gate réelle (politique par défaut) branchée sur un tableau réel, comme le fait le moteur. */
+  const setupBoard = (active = true) => {
+    const recorder = createRecorder({ runId: "run-1" });
+    const events: EngineEvent[] = [];
+    recorder.subscribe((e) => events.push(e));
+    const board = createSubagentBoard({ recorder });
+    const gate = createApprovalGate({
+      policy: DEFAULT_POLICY,
+      recorder,
+      workspace: { cwd: "/w", posixShell: true },
+      ...(active && { subagents: board }),
+    });
+    return { recorder, events, board, gate };
+  };
+
+  const capture = async (extra: Partial<RunArgs> = {}) => {
+    const { recorder, events, gate } = setupBoard(false);
+    let options: Options | undefined;
+    const query: QueryFn = async function* (params) {
+      options = params.options;
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query, ...extra });
+    return { options: options as Options, events };
+  };
+
+  const hookInput = (toolUseId: string, tool: string, input: object, agentId?: string) =>
+    ({
+      hook_event_name: "PreToolUse",
+      tool_name: tool,
+      tool_input: input,
+      tool_use_id: toolUseId,
+      session_id: "s",
+      transcript_path: "",
+      cwd: "/",
+      ...(agentId !== undefined && { agent_id: agentId }),
+    }) as HookInput;
+
+  /** Décision rendue par le hook PreToolUse du moteur pour un appel. */
+  const decideVia = async (options: Options, input: HookInput) => {
+    const hook = options.hooks?.PreToolUse?.[0]?.hooks[0];
+    const out = await hook?.(input, (input as { tool_use_id: string }).tool_use_id, {
+      signal: new AbortController().signal,
+    });
+    const specific = out && "hookSpecificOutput" in out ? out.hookSpecificOutput : undefined;
+    return specific?.hookEventName === "PreToolUse"
+      ? { decision: specific.permissionDecision, reason: specific.permissionDecisionReason ?? "" }
+      : undefined;
+  };
+
+  it("mode inactif : aucun outil de lancement ni clé agents, options inchangées", async () => {
+    const { options } = await capture({ toolsets: [deskToolset()] });
+    expect(options.tools).toEqual(BASE_TOOLS);
+    expect(options).not.toHaveProperty("agents");
+    expect(options.disallowedTools).toEqual(["Bash", "PowerShell"]);
+    const desk = options.mcpServers?.desk;
+    if (!desk || !("instance" in desk)) throw new Error("Serveur desk absent");
+    // Sans tableau, l'outil du bureau n'existe pas.
+    const out = await callMcpTool(desk, "propose_subagents", { items: DRAFTS });
+    expect(out.isError).toBe(true);
+  });
+
+  it("mode actif : Agent et Task exposés, agents.redwidow défini sans outil de lancement", async () => {
+    const { board } = setupBoard();
+    const { options } = await capture({ subagents: board, toolsets: [deskToolset()] });
+    expect(options.tools).toEqual([...BASE_TOOLS, "Agent", "Task"]);
+    // Les autres options restent celles du mode inactif.
+    expect(options).toMatchObject({
+      permissionMode: "default",
+      allowedTools: [],
+      strictMcpConfig: true,
+      settingSources: [],
+    });
+    expect(options.disallowedTools).toEqual(["Bash", "PowerShell"]);
+
+    expect(Object.keys(options.agents ?? {})).toEqual(["redwidow"]);
+    const agent = options.agents?.redwidow;
+    expect(agent).toMatchObject({ model: "inherit", background: false });
+    expect(agent?.description).toContain("redwidow");
+    expect(agent?.prompt).toContain("sous-agent");
+    expect(agent?.prompt).toContain("règles de mission");
+    // Mêmes outils que l'agent principal, sans lancement ni orchestration.
+    expect(agent?.tools).toEqual(expect.arrayContaining([...BASE_TOOLS, "mcp__desk__load_skill"]));
+    expect(agent?.tools).not.toContain("Task");
+    expect(agent?.tools).not.toContain("Agent");
+    expect(agent?.tools).not.toContain("mcp__desk__propose_subagents");
+    expect(agent?.tools).not.toContain("Bash");
+    expect(agent?.disallowedTools).toEqual(
+      expect.arrayContaining(["Task", "Agent", "mcp__desk__propose_subagents", "Bash"]),
+    );
+  });
+
+  it("mode actif avec Bash demandé : le sous-agent a Bash, comme l'agent principal", async () => {
+    const { board } = setupBoard();
+    const { options } = await capture({ subagents: board, bash: true });
+    expect(options.tools).toEqual([...BASE_TOOLS, "Bash", "Agent", "Task"]);
+    expect(options.agents?.redwidow?.tools).toEqual([...BASE_TOOLS, "Bash"]);
+    expect(options.agents?.redwidow?.disallowedTools).not.toContain("Bash");
+  });
+
+  it("agents passé via sdkOptions est ignoré, en mode actif comme inactif", async () => {
+    const evil = {
+      ...({
+        agents: {
+          evil: { description: "d", prompt: "p" },
+          redwidow: { description: "x", prompt: "y" },
+        },
+      } as object),
+    };
+    const off = await capture({ sdkOptions: evil });
+    expect(off.options).not.toHaveProperty("agents");
+    const { board } = setupBoard();
+    const on = await capture({ subagents: board, sdkOptions: evil });
+    expect(Object.keys(on.options.agents ?? {})).toEqual(["redwidow"]);
+    expect(on.options.agents?.redwidow?.prompt).not.toBe("y");
+  });
+
+  it("outil propose_subagents exécuté dans le serveur MCP en processus : bloque jusqu'à la réponse", async () => {
+    const { recorder, events, board, gate } = setupBoard();
+    let text = "";
+    const query: QueryFn = async function* ({ options }) {
+      const desk = options.mcpServers?.desk;
+      if (!desk || !("instance" in desk)) throw new Error("Serveur desk absent");
+      const call = callMcpTool(desk, "propose_subagents", { items: DRAFTS });
+      await vi.waitFor(() => expect(board.pending()).not.toBeNull());
+      // L'appel est en attente : aucun résultat avant la réponse de l'utilisateur.
+      const early = await Promise.race([call, Promise.resolve("attente")]);
+      expect(early).toBe("attente");
+      board.answer(board.pending()?.proposalId ?? "", ["s2"], "seulement l'API");
+      text = (await call).text;
+      yield result({});
+    };
+    await runAgent({
+      prompt: "x",
+      recorder,
+      gate,
+      query,
+      subagents: board,
+      toolsets: [deskToolset()],
+    });
+    expect(JSON.parse(text)).toEqual({
+      decision: "accepted",
+      selected: [{ id: "s2", description: "API" }],
+      note: "seulement l'API",
+    });
+    // La proposition et la réponse sont journalisées par le tableau partagé avec la gate.
+    expect(events.map((e) => e.kind).filter((kind) => kind.startsWith("subagents."))).toEqual([
+      "subagents.proposed",
+      "subagents.decided",
+    ]);
+  });
+
+  it("la gate reçoit agentId pour un appel de sous-agent, jamais pour l'agent principal", async () => {
+    const { recorder, gate } = setupBoard(false);
+    const decide = vi.spyOn(gate, "decide");
+    let options: Options | undefined;
+    const query: QueryFn = async function* (params) {
+      options = params.options;
+      const o = params.options;
+      await decideVia(o, hookInput("m1", "Read", { file_path: "/w/a" }));
+      await decideVia(o, hookInput("s1", "Read", { file_path: "/w/a" }, "agent-7"));
+      // Identifiant vide : défini quand même, la règle d'imbrication tranche en cas de doute.
+      await decideVia(o, hookInput("s2", "Read", { file_path: "/w/b" }, ""));
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query });
+    expect(options).toBeDefined();
+    const requests = decide.mock.calls.map(([request]) => request);
+    expect(requests.map((r) => r.toolUseId)).toEqual(["m1", "s1", "s2"]);
+    expect(requests[0]).not.toHaveProperty("agentId");
+    expect(requests[1]).toMatchObject({ agentId: "agent-7" });
+    expect(requests[2]).toMatchObject({ agentId: "" });
+  });
+
+  it("proposition acceptée puis Agent redwidow approuvé ; autre type, imbrication et place inconnue refusés", async () => {
+    const { recorder, events, board, gate } = setupBoard();
+    const verdicts: Record<string, { decision?: string | undefined; reason: string } | undefined> =
+      {};
+    const query: QueryFn = async function* ({ options }) {
+      const desk = options.mcpServers?.desk;
+      if (!desk || !("instance" in desk)) throw new Error("Serveur desk absent");
+      const call = callMcpTool(desk, "propose_subagents", { items: DRAFTS });
+      await vi.waitFor(() => expect(board.pending()).not.toBeNull());
+      board.answer(board.pending()?.proposalId ?? "", ["s1", "s2"]);
+      await call;
+      const task = (description: string, extra: object) => ({
+        description,
+        prompt: "p",
+        ...extra,
+      });
+      // Sans accord pour cette description, ou avec un autre type : refus, la place reste.
+      verdicts.unknown = await decideVia(
+        options,
+        hookInput("u1", "Agent", task("Inconnue", { subagent_type: "redwidow" })),
+      );
+      verdicts.otherType = await decideVia(
+        options,
+        hookInput("o1", "Agent", task("Domaines", { subagent_type: "general-purpose" })),
+      );
+      verdicts.noType = await decideVia(options, hookInput("o2", "Task", task("Domaines", {})));
+      // Appel venu d'un sous-agent (agent_id) : pas d'imbrication, même avec une place approuvée.
+      verdicts.nested = await decideVia(
+        options,
+        hookInput("n1", "Agent", task("Domaines", { subagent_type: "redwidow" }), "agent-7"),
+      );
+      // Place approuvée, type redwidow : accord, sous les deux noms de l'outil.
+      verdicts.domaines = await decideVia(
+        options,
+        hookInput("d1", "Agent", task("Domaines", { subagent_type: "redwidow" })),
+      );
+      verdicts.api = await decideVia(
+        options,
+        hookInput("a1", "Task", task("API", { subagent_type: "redwidow" })),
+      );
+      // La place est consommée.
+      verdicts.again = await decideVia(
+        options,
+        hookInput("d2", "Agent", task("Domaines", { subagent_type: "redwidow" })),
+      );
+      yield result({});
+    };
+    await runAgent({
+      prompt: "x",
+      recorder,
+      gate,
+      query,
+      subagents: board,
+      toolsets: [deskToolset()],
+    });
+    expect(verdicts.unknown?.decision).toBe("deny");
+    expect(verdicts.otherType?.decision).toBe("deny");
+    expect(verdicts.noType?.decision).toBe("deny");
+    expect(verdicts.nested?.decision).toBe("deny");
+    expect(verdicts.nested?.reason).toContain("imbrication");
+    expect(verdicts.domaines).toMatchObject({ decision: "allow" });
+    expect(verdicts.api).toMatchObject({ decision: "allow" });
+    expect(verdicts.again?.decision).toBe("deny");
+    expect(board.running()).toBe(2);
+    // Aucune demande à l'utilisateur pour un Task approuvé : la carte a valu accord.
+    expect(events.some((e) => e.kind === "approval.requested")).toBe(false);
+    expect(events.filter((e) => e.kind === "subagents.decided")).toHaveLength(1);
+  });
+
+  it("le résultat de l'outil Agent libère la place du tableau (tool.result du même tool_use_id)", async () => {
+    const { recorder, board, gate } = setupBoard();
+    const query: QueryFn = async function* ({ options }) {
+      const pending = board.propose([{ name: "Domaines", goal: "g" }]);
+      board.answer(board.pending()?.proposalId ?? "", ["s1"]);
+      await pending;
+      const input = { description: "Domaines", prompt: "p", subagent_type: "redwidow" };
+      yield toolUse("ag1", "Agent", input);
+      const out = await decideVia(options, hookInput("ag1", "Agent", input));
+      expect(out?.decision).toBe("allow");
+      expect(board.running()).toBe(1);
+      yield toolResult("ag1", "synthèse du sous-agent");
+      yield result({});
+    };
+    await runAgent({ prompt: "x", recorder, gate, query, subagents: board });
+    expect(board.running()).toBe(0);
+  });
 });
