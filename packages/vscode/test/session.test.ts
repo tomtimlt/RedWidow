@@ -48,6 +48,7 @@ function fake() {
             : ["prompt", t, research],
       ),
     answer: (...a) => void calls.push(["answer", ...a]),
+    subagentsAnswer: (...a) => void calls.push(["subagentsAnswer", ...a]),
     abort: () => void calls.push(["abort"]),
     dispose: () => void calls.push(["dispose"]),
     kill: () => void calls.push(["kill"]),
@@ -2391,6 +2392,167 @@ describe("niveau d'encadrement (webview → session)", () => {
     t.session.setSupervision("strict");
     await t.session.send("deux");
     expect(t.f.starts[1]).toMatchObject({ supervision: "strict", resume: "S1" });
+  });
+});
+
+describe("mode Sous-agents (ADR 0054, webview → session)", () => {
+  const ready = async (t: ReturnType<typeof setup>) => {
+    t.f.setModels([{ value: "a", displayName: "A" }]);
+    await t.session.loadModels();
+    return t;
+  };
+  const items = [
+    { id: "s1", name: "Domaines", goal: "Énumérer" },
+    { id: "s2", name: "API", goal: "Cartographier" },
+  ];
+
+  it("désactivé par défaut : start sans subagents, contrôle à false", async () => {
+    const t = await ready(setup({}));
+    expect(t.view().controls?.subagents).toBe(false);
+    await t.session.send("un");
+    expect(t.f.started).not.toHaveProperty("subagents");
+  });
+
+  it("activé : transmis au démarrage et affiché", async () => {
+    const t = await ready(setup({}));
+    t.session.setSubagents(true);
+    expect(t.view().controls?.subagents).toBe(true);
+    await t.session.send("un");
+    expect(t.f.started).toMatchObject({ subagents: true });
+  });
+
+  it("booléen strict : toute autre valeur est ignorée", async () => {
+    const t = await ready(setup({}));
+    for (const bad of ["true", 1, null, undefined, {}, []]) {
+      t.session.setSubagents(bad);
+      expect(t.view().controls?.subagents, String(bad)).toBe(false);
+    }
+    t.session.setSubagents(true);
+    t.session.setSubagents("false");
+    expect(t.view().controls?.subagents).toBe(true);
+  });
+
+  it("gelé pendant un tour", async () => {
+    const t = await ready(setup({}));
+    await t.session.send("x");
+    t.session.setSubagents(true);
+    expect(t.view().controls?.subagents).toBe(false);
+  });
+
+  it("persisté par chat : relu en booléen strict, sans fuite vers un autre chat", async () => {
+    const data = new Map<string, unknown>();
+    const store = {
+      get: (key: string) => data.get(key),
+      set: (key: string, value: unknown) => void data.set(key, value),
+    };
+    const a = await ready(setup({ store, prefsKey: "prefs.a" }));
+    a.session.setSubagents(true);
+    expect((data.get("prefs.a") as { subagents?: boolean }).subagents).toBe(true);
+    const again = await ready(setup({ store, prefsKey: "prefs.a" }));
+    expect(again.session.view().controls?.subagents).toBe(true);
+    const other = await ready(setup({ store, prefsKey: "prefs.b" }));
+    expect(other.session.view().controls?.subagents).toBe(false);
+    // Valeur stockée non booléenne : mode inactif.
+    data.set("prefs.c", { subagents: "true" });
+    const bad = await ready(setup({ store, prefsKey: "prefs.c" }));
+    expect(bad.session.view().controls?.subagents).toBe(false);
+  });
+
+  it("toujours inactif en mode apprentissage, sans perdre la préférence", async () => {
+    const t = await ready(setup({ learningKey: "warband.learning.a" }));
+    t.session.setSubagents(true);
+    t.session.setLearning(true);
+    expect(t.view().controls?.subagents).toBe(false);
+    await t.session.send("un");
+    expect(t.f.started).not.toHaveProperty("subagents");
+    expect(t.f.started).toMatchObject({ mode: "learning" });
+  });
+
+  it("changement entre deux messages : moteur inactif remplacé, mode transmis", async () => {
+    const t = setup({});
+    await t.session.send("un");
+    t.f.handlers.onEvent?.(ev({ kind: "session.started", sessionId: "S1" }));
+    t.f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    t.session.setSubagents(true);
+    await t.session.send("deux");
+    expect(t.f.starts[0]).not.toHaveProperty("subagents");
+    expect(t.f.starts[1]).toMatchObject({ subagents: true, resume: "S1" });
+    // Sans changement : le moteur courant est conservé.
+    t.f.handlers.onEnded?.({ sessionId: "S1" } as never);
+    await t.session.send("trois");
+    expect(t.f.starts).toHaveLength(2);
+  });
+
+  it("expose la proposition en attente à la vue, textes neutralisés", async () => {
+    const t = setup({});
+    await t.session.send("un");
+    expect(t.view().subagentsProposal).toBeUndefined();
+    t.f.handlers.onSubagentsProposal?.({
+      proposalId: "p1",
+      items: [{ id: "s1", name: "Nom\u0007 court", goal: "objectif" }],
+    });
+    expect(t.view().subagentsProposal).toEqual({
+      proposalId: "p1",
+      items: [{ id: "s1", name: "Nom court", goal: "objectif" }],
+    });
+  });
+
+  it("la proposition disparaît sur subagents.decided (celle qui correspond seulement)", async () => {
+    const t = setup({});
+    await t.session.send("un");
+    t.f.handlers.onSubagentsProposal?.({ proposalId: "p1", items });
+    t.f.handlers.onEvent?.(
+      ev({ kind: "subagents.decided", proposalId: "autre", decision: "declined", selected: [] }),
+    );
+    expect(t.view().subagentsProposal?.proposalId).toBe("p1");
+    t.f.handlers.onEvent?.(
+      ev({ kind: "subagents.decided", proposalId: "p1", decision: "declined", selected: [] }),
+    );
+    expect(t.view().subagentsProposal).toBeUndefined();
+  });
+
+  it("la proposition disparaît à la sortie du moteur, au remplacement et à la réinitialisation", async () => {
+    const t = setup({});
+    await t.session.send("un");
+    t.f.handlers.onSubagentsProposal?.({ proposalId: "p1", items });
+    t.f.handlers.onExit?.({ code: 0, signal: null });
+    expect(t.view().subagentsProposal).toBeUndefined();
+    const u = setup({});
+    await u.session.send("un");
+    u.f.handlers.onSubagentsProposal?.({ proposalId: "p1", items });
+    u.session.reset();
+    expect(u.view().subagentsProposal).toBeUndefined();
+  });
+
+  it("répond au moteur pour la proposition affichée, avec les identifiants cochés et la note", async () => {
+    const t = setup({});
+    await t.session.send("un");
+    t.f.handlers.onSubagentsProposal?.({ proposalId: "p1", items });
+    t.session.answerSubagents("p1", ["s2"], "ok");
+    expect(t.f.calls.at(-1)).toEqual(["subagentsAnswer", "p1", ["s2"], "ok"]);
+    t.session.answerSubagents("p1", []);
+    expect(t.f.calls.at(-1)).toEqual(["subagentsAnswer", "p1", [], undefined]);
+  });
+
+  it("ignore une réponse forgée : proposition inconnue, identifiants inconnus ou en double, types invalides", async () => {
+    const t = setup({});
+    await t.session.send("un");
+    const before = t.f.calls.length;
+    t.session.answerSubagents("p1", ["s1"]); // aucune proposition affichée
+    t.f.handlers.onSubagentsProposal?.({ proposalId: "p1", items });
+    for (const [id, picked, note] of [
+      ["autre", ["s1"], undefined],
+      ["p1", ["s9"], undefined],
+      ["p1", ["s1", "s1"], undefined],
+      ["p1", "s1", undefined],
+      ["p1", [1], undefined],
+      ["p1", ["s1"], 3],
+      ["p1", ["s1"], "n".repeat(2001)],
+      [undefined, ["s1"], undefined],
+    ] as [unknown, unknown, unknown][]) {
+      t.session.answerSubagents(id, picked, note);
+    }
+    expect(t.f.calls.length).toBe(before);
   });
 });
 

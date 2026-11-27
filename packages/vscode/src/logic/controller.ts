@@ -13,6 +13,7 @@ import {
   type ProviderOption,
   type Reason,
   type RememberScope,
+  type SubagentItem,
   safeEnv,
   spawnOptionsForTree,
   type TestAccounts,
@@ -87,6 +88,8 @@ export interface EngineHandlers {
   onEvent?(event: EngineEvent): void;
   onMissionContext?(snapshot: { runId: string; text: string }): void;
   onApproval?(approval: PendingApproval): void;
+  /** Proposition de sous-agents en attente de la réponse de l'utilisateur (ADR 0054). */
+  onSubagentsProposal?(proposal: { proposalId: string; items: SubagentItem[] }): void;
   onEnded?(summary: EndedSummary): void;
   /** Erreur du moteur, ou message rejeté par la validation (le message fautif est ignoré). */
   onError?(reason: ErrorInfo): void;
@@ -138,6 +141,11 @@ export interface EngineController {
   }): Promise<ModelOption[]>;
   prompt(text: string, research?: boolean, images?: PromptImage[]): void;
   answer(toolUseId: string, decision: "allow" | "deny", remember?: RememberScope): void;
+  /**
+   * Répond à la proposition de sous-agents en attente (ADR 0054) : `selected` = identifiants cochés,
+   * vide = aucun. Le moteur ignore une réponse dont `proposalId` n'est plus celui de la proposition.
+   */
+  subagentsAnswer(proposalId: string, selected: readonly string[], note?: string): void;
   /**
    * Envoie l'état du Bypass au moteur (`null` = inactif) et renvoie le `seq` attribué. Le compteur
    * repart de 1 à chaque moteur (nouveau contrôleur). Ne fait rien de plus : l'accusé arrive par `onBypassAck`.
@@ -201,6 +209,11 @@ export function createEngineController(options: EngineControllerOptions): Engine
         return handlers.onMissionContext?.({ runId: message.runId, text: message.text });
       case "approval":
         return handlers.onApproval?.(message.approval);
+      case "subagentsProposal":
+        return handlers.onSubagentsProposal?.({
+          proposalId: message.proposalId,
+          items: message.items,
+        });
       case "ended":
         return handlers.onEnded?.(message.summary);
       case "models":
@@ -369,6 +382,14 @@ export function createEngineController(options: EngineControllerOptions): Engine
         toolUseId,
         decision,
         ...(remember !== undefined && { remember }),
+      }),
+    subagentsAnswer: (proposalId, selected, note) =>
+      post({
+        v: PROTOCOL_VERSION,
+        type: "subagentsAnswer",
+        proposalId,
+        selected: [...selected],
+        ...(note !== undefined && { note }),
       }),
     bypass: sendBypass,
     abort: () => post({ v: PROTOCOL_VERSION, type: "abort" }),

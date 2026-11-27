@@ -288,3 +288,188 @@ it("valide les images et la capacité de vision aux frontières IPC", () => {
     }).ok,
   ).toBe(false);
 });
+
+describe("protocole IPC : sous-agents (ADR 0054)", () => {
+  const items = [
+    { id: "s1", name: "Domaines", goal: "Énumérer les sous-domaines" },
+    { id: "s2", name: "API", goal: "Cartographier les routes" },
+  ];
+
+  it("start : subagents est un booléen strict, refusé en apprentissage", () => {
+    for (const subagents of [true, false])
+      expect(parseToEngine({ v: 1, type: "start", cwd, subagents }).ok).toBe(true);
+    expect(parseToEngine({ v: 1, type: "start", cwd }).ok).toBe(true);
+    for (const subagents of ["true", 1, null, {}, []])
+      expect(parseToEngine({ v: 1, type: "start", cwd, subagents }).ok, String(subagents)).toBe(
+        false,
+      );
+    expect(parseToEngine({ v: 1, type: "start", cwd, mode: "learning", subagents: true })).toEqual({
+      ok: false,
+      reason: { code: "ipc.invalidMessage", params: { field: "subagents", reason: "invalid" } },
+    });
+    // Désactivé en apprentissage : sans objet, donc accepté.
+    expect(parseToEngine({ v: 1, type: "start", cwd, mode: "learning", subagents: false }).ok).toBe(
+      true,
+    );
+  });
+
+  it("subagentsAnswer : forme exacte, identifiants bornés", () => {
+    for (const m of [
+      { v: 1, type: "subagentsAnswer", proposalId: "p1", selected: ["s1", "s2"] },
+      { v: 1, type: "subagentsAnswer", proposalId: "p1", selected: [] },
+      { v: 1, type: "subagentsAnswer", proposalId: "p1", selected: ["s1"], note: "ok" },
+    ])
+      expect(parseToEngine(m).ok, JSON.stringify(m)).toBe(true);
+  });
+
+  it.each([
+    ["sans proposalId", { v: 1, type: "subagentsAnswer", selected: [] }],
+    ["proposalId vide", { v: 1, type: "subagentsAnswer", proposalId: "", selected: [] }],
+    [
+      "proposalId trop long",
+      { v: 1, type: "subagentsAnswer", proposalId: "p".repeat(201), selected: [] },
+    ],
+    ["proposalId non texte", { v: 1, type: "subagentsAnswer", proposalId: 3, selected: [] }],
+    ["sans selected", { v: 1, type: "subagentsAnswer", proposalId: "p" }],
+    ["selected non tableau", { v: 1, type: "subagentsAnswer", proposalId: "p", selected: "s1" }],
+    ["selected non texte", { v: 1, type: "subagentsAnswer", proposalId: "p", selected: [1] }],
+    ["selected vide", { v: 1, type: "subagentsAnswer", proposalId: "p", selected: [""] }],
+    [
+      "selected en double",
+      { v: 1, type: "subagentsAnswer", proposalId: "p", selected: ["s1", "s1"] },
+    ],
+    [
+      "selected trop long",
+      { v: 1, type: "subagentsAnswer", proposalId: "p", selected: ["a", "b", "c", "d", "e"] },
+    ],
+    [
+      "identifiant trop long",
+      { v: 1, type: "subagentsAnswer", proposalId: "p", selected: ["s".repeat(65)] },
+    ],
+    ["note non texte", { v: 1, type: "subagentsAnswer", proposalId: "p", selected: [], note: 1 }],
+    [
+      "note trop longue",
+      { v: 1, type: "subagentsAnswer", proposalId: "p", selected: [], note: "n".repeat(2001) },
+    ],
+    [
+      "clé en trop",
+      { v: 1, type: "subagentsAnswer", proposalId: "p", selected: [], approve: true },
+    ],
+  ])("subagentsAnswer rejeté : %s", (_name, message) => {
+    expect(parseToEngine(message).ok).toBe(false);
+  });
+
+  it("subagentsProposal : 1 à 4 éléments exacts, identifiants uniques", () => {
+    expect(parseFromEngine({ v: 1, type: "subagentsProposal", proposalId: "p1", items }).ok).toBe(
+      true,
+    );
+  });
+
+  it.each([
+    ["sans proposalId", { v: 1, type: "subagentsProposal", items }],
+    ["proposalId vide", { v: 1, type: "subagentsProposal", proposalId: "", items }],
+    ["sans éléments", { v: 1, type: "subagentsProposal", proposalId: "p", items: [] }],
+    ["éléments non tableau", { v: 1, type: "subagentsProposal", proposalId: "p", items: "x" }],
+    [
+      "cinq éléments",
+      {
+        v: 1,
+        type: "subagentsProposal",
+        proposalId: "p",
+        items: ["a", "b", "c", "d", "e"].map((name) => ({ id: name, name, goal: "x" })),
+      },
+    ],
+    [
+      "identifiants en double",
+      {
+        v: 1,
+        type: "subagentsProposal",
+        proposalId: "p",
+        items: [
+          { id: "s1", name: "A", goal: "a" },
+          { id: "s1", name: "B", goal: "b" },
+        ],
+      },
+    ],
+    [
+      "élément sans objectif",
+      { v: 1, type: "subagentsProposal", proposalId: "p", items: [{ id: "s1", name: "A" }] },
+    ],
+    [
+      "clé en trop dans un élément",
+      {
+        v: 1,
+        type: "subagentsProposal",
+        proposalId: "p",
+        items: [{ id: "s1", name: "A", goal: "a", model: "m" }],
+      },
+    ],
+    [
+      "nom vide",
+      {
+        v: 1,
+        type: "subagentsProposal",
+        proposalId: "p",
+        items: [{ id: "s1", name: "", goal: "a" }],
+      },
+    ],
+    ["clé en trop", { v: 1, type: "subagentsProposal", proposalId: "p", items, token: "x" }],
+  ])("subagentsProposal rejeté : %s", (_name, message) => {
+    expect(parseFromEngine(message).ok).toBe(false);
+  });
+
+  it("une demande d'approbation peut nommer le sous-agent demandeur (agentId)", () => {
+    const approval = { toolUseId: "t", tool: "Write", input: {}, verdict, agentId: "agent-1" };
+    expect(parseFromEngine({ v: 1, type: "approval", approval }).ok).toBe(true);
+    expect(
+      parseFromEngine({ v: 1, type: "approval", approval: { ...approval, agentId: 3 } }).ok,
+    ).toBe(false);
+    expect(
+      parseFromEngine({ v: 1, type: "approval", approval: { ...approval, extra: 1 } }).ok,
+    ).toBe(false);
+  });
+
+  it("relaie les événements des sous-agents", () => {
+    const meta = {
+      v: 1,
+      id: "e",
+      seq: 1,
+      ts: "2026-01-01T00:00:00.000Z",
+      runId: "r",
+      parentId: null,
+    };
+    expect(
+      parseFromEngine({
+        v: 1,
+        type: "event",
+        event: { ...meta, kind: "subagents.proposed", proposalId: "p", items },
+      }).ok,
+    ).toBe(true);
+    expect(
+      parseFromEngine({
+        v: 1,
+        type: "event",
+        event: {
+          ...meta,
+          kind: "subagents.decided",
+          proposalId: "p",
+          decision: "accepted",
+          selected: [{ id: "s1", description: "Domaines" }],
+        },
+      }).ok,
+    ).toBe(true);
+    expect(
+      parseFromEngine({
+        v: 1,
+        type: "event",
+        event: {
+          ...meta,
+          kind: "subagents.decided",
+          proposalId: "p",
+          decision: "oui",
+          selected: [],
+        },
+      }).ok,
+    ).toBe(false);
+  });
+});

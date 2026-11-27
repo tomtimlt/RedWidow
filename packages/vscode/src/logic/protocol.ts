@@ -21,6 +21,11 @@ import {
   type Reason,
   type RememberScope,
   reason,
+  SUBAGENT_GOAL_MAX,
+  SUBAGENT_NAME_MAX,
+  SUBAGENTS_MAX_ITEMS,
+  SUBAGENTS_NOTE_MAX,
+  type SubagentItem,
   type SupervisionLevel,
   type TestAccount,
   testAccountsSchema,
@@ -65,6 +70,11 @@ export interface StartParams {
   systemPrompt?: string;
   /** Mode apprentissage (ADR 0010) : politique dédiée, outils de cours seuls. Absent : comportement habituel. */
   mode?: "learning";
+  /**
+   * Mode « Sous-agents » du chat (ADR 0054) : l'agent peut proposer des sous-agents que l'utilisateur
+   * valide. Absent ou `false` : comportement habituel. Refusé en mode apprentissage.
+   */
+  subagents?: boolean;
   /** Dossier absolu des journaux (stockage de l'extension, hors du dépôt). */
   journalDir?: string;
 }
@@ -92,6 +102,11 @@ export type ToEngine =
     }
   | { v: 1; type: "prompt"; text: string; research?: boolean; images?: PromptImage[] }
   | { v: 1; type: "answer"; toolUseId: string; decision: Decision; remember?: RememberScope }
+  /**
+   * Réponse à une proposition de sous-agents (ADR 0054) : `selected` = identifiants des éléments cochés,
+   * vide = aucun (refus). Ignorée si `proposalId` n'est pas celui de la proposition en attente.
+   */
+  | { v: 1; type: "subagentsAnswer"; proposalId: string; selected: string[]; note?: string }
   | { v: 1; type: "abort" }
   | { v: 1; type: "dispose" }
   /**
@@ -108,6 +123,8 @@ export type FromEngine =
   | { v: 1; type: "event"; event: EngineEvent }
   | { v: 1; type: "missionContext"; runId: string; text: string }
   | { v: 1; type: "approval"; approval: PendingApproval }
+  /** Proposition de sous-agents en attente de la réponse de l'utilisateur (ADR 0054). */
+  | { v: 1; type: "subagentsProposal"; proposalId: string; items: SubagentItem[] }
   | { v: 1; type: "ended"; summary: EndedSummary }
   | { v: 1; type: "error"; reason: ErrorInfo }
   /**
@@ -180,6 +197,7 @@ const START_KEYS = [
   "maxBudgetUsd",
   "systemPrompt",
   "mode",
+  "subagents",
   "journalDir",
   "burp",
   "integrations",
@@ -206,7 +224,16 @@ const validSeq = (value: unknown): value is number =>
 
 /** Valide un message reçu par le moteur. */
 export function parseToEngine(raw: unknown): Parsed<ToEngine> {
-  const env = envelope(raw, ["start", "models", "prompt", "answer", "abort", "dispose", "bypass"]);
+  const env = envelope(raw, [
+    "start",
+    "models",
+    "prompt",
+    "answer",
+    "subagentsAnswer",
+    "abort",
+    "dispose",
+    "bypass",
+  ]);
   if (!env.ok) return env;
   const { obj, type } = env.message;
   const extra = (keys: readonly string[]) => onlyKeys(obj, keys);
@@ -228,6 +255,12 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
         return bad("webSearch");
       unexpected = extra(START_KEYS);
       if (unexpected) return bad(unexpected, "unexpected");
+      // Booléen strict ; le mode apprentissage (lecture des cours seule) n'expose jamais de sous-agent.
+      if (
+        obj.subagents !== undefined &&
+        (typeof obj.subagents !== "boolean" || (obj.subagents && obj.mode === "learning"))
+      )
+        return bad("subagents");
       if (!isString(obj.cwd) || obj.cwd === "" || !isAbsolute(obj.cwd)) return bad("cwd");
       for (const key of ["resume", "systemPrompt"] as const) {
         if (obj[key] !== undefined && !isString(obj[key])) return bad(key);
@@ -324,6 +357,23 @@ export function parseToEngine(raw: unknown): Parsed<ToEngine> {
         return bad("remember");
       }
       return { ok: true, message: obj as ToEngine };
+    case "subagentsAnswer": {
+      unexpected = extra(["v", "type", "proposalId", "selected", "note"]);
+      if (unexpected) return bad(unexpected, "unexpected");
+      if (!isString(obj.proposalId) || obj.proposalId === "" || obj.proposalId.length > 200)
+        return bad("proposalId");
+      const selected = obj.selected;
+      if (
+        !Array.isArray(selected) ||
+        selected.length > SUBAGENTS_MAX_ITEMS ||
+        !selected.every((id) => isString(id) && id !== "" && id.length <= 64) ||
+        new Set(selected).size !== selected.length
+      )
+        return bad("selected");
+      if (obj.note !== undefined && (!isString(obj.note) || obj.note.length > SUBAGENTS_NOTE_MAX))
+        return bad("note");
+      return { ok: true, message: obj as ToEngine };
+    }
     case "bypass":
       unexpected = extra(["v", "type", "seq", "state"]);
       if (unexpected) return bad(unexpected, "unexpected");
@@ -357,8 +407,11 @@ function validReason(value: unknown, depth = 0): boolean {
 
 function validApproval(value: unknown): boolean {
   if (!isObj(value)) return false;
-  if (onlyKeys(value, ["toolUseId", "tool", "input", "verdict"]) !== null) return false;
+  if (onlyKeys(value, ["toolUseId", "tool", "input", "verdict", "agentId"]) !== null) return false;
   if (!isString(value.toolUseId) || !isString(value.tool) || !isObj(value.input)) return false;
+  // Sous-agent demandeur (ADR 0054), fourni par l'adaptateur.
+  if (value.agentId !== undefined && (!isString(value.agentId) || value.agentId.length > 200))
+    return false;
   const verdict = value.verdict;
   if (!isObj(verdict) || onlyKeys(verdict, ["decision", "reason", "rule"]) !== null) return false;
   return (
@@ -380,6 +433,22 @@ function validSummary(value: unknown): boolean {
   );
 }
 
+/** Éléments d'une proposition de sous-agents : 1 à 4, champs exacts, identifiants uniques et bornés. */
+function validProposalItems(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length < 1 || value.length > SUBAGENTS_MAX_ITEMS) return false;
+  const ids = new Set<string>();
+  for (const item of value) {
+    if (!isObj(item) || onlyKeys(item, ["id", "name", "goal"]) !== null) return false;
+    const { id, name, goal } = item;
+    if (!isString(id) || id === "" || id.length > 64 || ids.has(id)) return false;
+    // Marge sur les bornes de l'outil : le masquage des secrets peut allonger un texte.
+    if (!isString(name) || name === "" || name.length > SUBAGENT_NAME_MAX * 4) return false;
+    if (!isString(goal) || goal === "" || goal.length > SUBAGENT_GOAL_MAX * 4) return false;
+    ids.add(id);
+  }
+  return true;
+}
+
 /** Valide un message reçu par l'extension. */
 export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
   const env = envelope(raw, [
@@ -389,6 +458,7 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
     "event",
     "missionContext",
     "approval",
+    "subagentsProposal",
     "ended",
     "error",
     "mountIssue",
@@ -405,6 +475,7 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
       event: ["v", "type", "event"],
       missionContext: ["v", "type", "runId", "text"],
       approval: ["v", "type", "approval"],
+      subagentsProposal: ["v", "type", "proposalId", "items"],
       ended: ["v", "type", "summary"],
       error: ["v", "type", "reason"],
       mountIssue: ["v", "type", "code", "container", "mounted", "projectId", "projectName"],
@@ -459,6 +530,10 @@ export function parseFromEngine(raw: unknown): Parsed<FromEngine> {
     }
     case "approval":
       return validApproval(obj.approval) ? ok : bad("approval");
+    case "subagentsProposal":
+      if (!isString(obj.proposalId) || obj.proposalId === "" || obj.proposalId.length > 200)
+        return bad("proposalId");
+      return validProposalItems(obj.items) ? ok : bad("items");
     case "ended":
       return validSummary(obj.summary) ? ok : bad("summary");
     case "error":

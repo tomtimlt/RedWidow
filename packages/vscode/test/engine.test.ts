@@ -13,6 +13,8 @@ import {
   INTEGRATION_GUIDANCE,
   LEARNING_SYSTEM_PROMPT,
   type Policy,
+  type RunContext,
+  SUBAGENTS_GUIDANCE,
 } from "@warband/core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { type EngineChannel, MountIssueError, runEngine } from "../src/engine/engine.js";
@@ -1253,5 +1255,230 @@ describe("moteur : engagement, arrêt d'urgence et campagne transmis au runner (
     expect(learning?.engagement).toBeUndefined();
     expect(learning?.halted).toBeUndefined();
     expect(learning?.campaign).toBeUndefined();
+  });
+});
+
+describe("moteur : sous-agents proposés par l'agent (ADR 0054)", () => {
+  const DRAFTS = [
+    { name: "Domaines", goal: "Énumérer les sous-domaines" },
+    { name: "API", goal: "Cartographier les routes" },
+  ];
+  const policyLoader = async () => ({
+    policy: { default: "ask", rules: [] } as Policy,
+    source: null,
+    origin: "builtin" as const,
+  });
+
+  /** Runner qui expose son contexte et range les consignes qu'il reçoit. */
+  function boxRunner(box: { ctx?: RunContext; system?: string | undefined; prompts: string[] }) {
+    const runner: AgentRunner = {
+      run: async (input, ctx) => {
+        box.ctx = ctx;
+        box.system = input.systemPrompt;
+        for await (const p of input.prompt as AsyncIterable<string>) box.prompts.push(p);
+        return { status: "success", turns: 0, costUsd: 0, result: null };
+      },
+    };
+    return runner;
+  }
+
+  async function start(startParams: Record<string, unknown> = {}) {
+    const repo = await mkdtemp(join(tmpdir(), "warband-sub-"));
+    const journalDir = await mkdtemp(join(tmpdir(), "warband-sub-j-"));
+    const box: { ctx?: RunContext; system?: string | undefined; prompts: string[] } = {
+      prompts: [],
+    };
+    const t = fakeChannel();
+    const done = runEngine({
+      channel: t.channel,
+      createRunner: () => boxRunner(box),
+      policyLoader,
+    });
+    t.receive({ v: 1, type: "start", cwd: repo, journalDir, ...startParams });
+    await vi.waitFor(() => expect(box.ctx).toBeDefined());
+    const ctx = box.ctx as RunContext;
+    const proposals = () => t.sent.flatMap((m) => (m.type === "subagentsProposal" ? [m] : []));
+    const task = (toolUseId: string, description: string) =>
+      ctx.gate.decide(
+        { toolUseId, tool: "Task", input: { description } },
+        new AbortController().signal,
+      );
+    const cleanup = async () => {
+      await rm(journalDir, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    };
+    return { t, done, box, ctx, proposals, task, cleanup };
+  }
+
+  it("mode inactif : ni tableau, ni consigne, et Task est refusé par la gate", async () => {
+    const f = await start();
+    try {
+      expect(f.ctx.subagents).toBeUndefined();
+      expect(f.box.system).not.toContain(SUBAGENTS_GUIDANCE);
+      expect(f.box.system).toBe(
+        `${SCAN_OUTPUT_GUIDANCE}\n\n${deskInstructions()}\n\n${INTEGRATION_GUIDANCE}`,
+      );
+      const outcome = await f.task("t1", "API");
+      expect(outcome).toMatchObject({ decision: "deny", reason: { code: "subagents.disabled" } });
+      // Une réponse sans mode actif est une erreur de protocole, sans effet.
+      f.t.receive({ v: 1, type: "subagentsAnswer", proposalId: "p", selected: [] });
+      expect(codes(f.t.sent)).toEqual(["ipc.invalidMessage"]);
+      f.t.receive({ v: 1, type: "dispose" });
+      await f.done;
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("subagents: false ne change rien", async () => {
+    const f = await start({ subagents: false });
+    try {
+      expect(f.ctx.subagents).toBeUndefined();
+      expect(f.box.system).not.toContain(SUBAGENTS_GUIDANCE);
+      f.t.receive({ v: 1, type: "dispose" });
+      await f.done;
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("le mode apprentissage refuse subagents: true dès le start", async () => {
+    const t = fakeChannel();
+    const done = runEngine({ channel: t.channel, createRunner: () => idleRunner });
+    t.receive({ v: 1, type: "start", cwd, mode: "learning", subagents: true });
+    expect(codes(t.sent)).toEqual(["ipc.invalidMessage"]);
+    t.receive({ v: 1, type: "dispose" });
+    await done;
+  });
+
+  it("mode actif : tableau partagé, consigne ajoutée, proposition relayée puis accord", async () => {
+    const f = await start({ subagents: true, systemPrompt: "consigne UI" });
+    try {
+      expect(f.ctx.subagents).toBeDefined();
+      expect(f.box.system).toBe(
+        `${SCAN_OUTPUT_GUIDANCE}\n\n${deskInstructions()}\n\n${SUBAGENTS_GUIDANCE}\n\n${INTEGRATION_GUIDANCE}\n\nconsigne UI`,
+      );
+      // Sans accord, la gate refuse Task.
+      expect(await f.task("t0", "API")).toMatchObject({
+        reason: { code: "subagents.not_approved" },
+      });
+      const board = f.ctx.subagents;
+      if (!board) throw new Error("tableau absent");
+      const outcome = board.propose(DRAFTS, { parentId: null });
+      await vi.waitFor(() => expect(f.proposals()).toHaveLength(1));
+      const [proposal] = f.proposals();
+      expect(proposal).toMatchObject({
+        v: 1,
+        type: "subagentsProposal",
+        items: [
+          { id: "s1", name: "Domaines", goal: "Énumérer les sous-domaines" },
+          { id: "s2", name: "API", goal: "Cartographier les routes" },
+        ],
+      });
+      f.t.receive({
+        v: 1,
+        type: "subagentsAnswer",
+        proposalId: proposal?.proposalId,
+        selected: ["s2"],
+      });
+      expect(await outcome).toEqual({
+        decision: "accepted",
+        selected: [{ id: "s2", description: "API" }],
+      });
+      expect(codes(f.t.sent)).toEqual([]);
+      // La place approuvée passe la gate sans demande à l'utilisateur ; elle ne sert qu'une fois.
+      expect(await f.task("t1", "API")).toMatchObject({
+        decision: "allow",
+        reason: { code: "subagents.approved" },
+      });
+      expect(await f.task("t2", "API")).toMatchObject({ decision: "deny" });
+      expect(f.t.sent.some((m) => m.type === "approval")).toBe(false);
+      const kinds = eventsOf(f.t.sent).map((e) => e.kind);
+      expect(kinds).toContain("subagents.proposed");
+      expect(kinds).toContain("subagents.decided");
+      f.t.receive({ v: 1, type: "dispose" });
+      await f.done;
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("ignore une réponse au proposalId inconnu, sans erreur ni effet", async () => {
+    const f = await start({ subagents: true });
+    try {
+      const board = f.ctx.subagents;
+      if (!board) throw new Error("tableau absent");
+      const outcome = board.propose(DRAFTS);
+      await vi.waitFor(() => expect(f.proposals()).toHaveLength(1));
+      f.t.receive({ v: 1, type: "subagentsAnswer", proposalId: "inconnu", selected: ["s1"] });
+      expect(board.pending()).not.toBeNull();
+      expect(codes(f.t.sent)).toEqual([]);
+      f.t.receive({ v: 1, type: "abort" });
+      expect(await outcome).toEqual({ decision: "declined" });
+      await f.done;
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("un texte tapé pendant la proposition la refuse avec ce texte et n'est pas mis en file", async () => {
+    const f = await start({ subagents: true });
+    try {
+      const board = f.ctx.subagents;
+      if (!board) throw new Error("tableau absent");
+      const outcome = board.propose(DRAFTS);
+      await vi.waitFor(() => expect(f.proposals()).toHaveLength(1));
+      f.t.receive({ v: 1, type: "prompt", text: "plutôt un scan de ports" });
+      expect(await outcome).toEqual({ decision: "declined", note: "plutôt un scan de ports" });
+      // Le texte n'a pas été remis à l'agent comme nouveau tour.
+      await new Promise((r) => setTimeout(r, 50));
+      expect(f.box.prompts).toEqual([]);
+      expect(eventsOf(f.t.sent).filter((e) => e.kind === "user.message")).toEqual([]);
+      const decided = eventsOf(f.t.sent).find((e) => e.kind === "subagents.decided");
+      expect(decided).toMatchObject({ decision: "declined", note: "plutôt un scan de ports" });
+      // Sans proposition en attente, le texte suivant est une consigne normale.
+      f.t.receive({ v: 1, type: "prompt", text: "suite" });
+      await vi.waitFor(() => expect(f.box.prompts).toEqual(["suite"]));
+      f.t.receive({ v: 1, type: "dispose" });
+      await f.done;
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("l'arrêt de la course refuse la proposition en attente", async () => {
+    const f = await start({ subagents: true });
+    try {
+      const board = f.ctx.subagents;
+      if (!board) throw new Error("tableau absent");
+      const outcome = board.propose(DRAFTS);
+      await vi.waitFor(() => expect(f.proposals()).toHaveLength(1));
+      f.t.receive({ v: 1, type: "abort" });
+      expect(await outcome).toEqual({ decision: "declined" });
+      expect(eventsOf(f.t.sent).find((e) => e.kind === "subagents.decided")).toMatchObject({
+        decision: "declined",
+        selected: [],
+      });
+      // Le tableau est fermé : plus aucun Task n'est admis.
+      expect(await f.task("t1", "API")).toMatchObject({ reason: { code: "subagents.disabled" } });
+      await f.done;
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("la déconnexion du parent refuse aussi la proposition en attente", async () => {
+    const f = await start({ subagents: true });
+    try {
+      const board = f.ctx.subagents;
+      if (!board) throw new Error("tableau absent");
+      const outcome = board.propose(DRAFTS);
+      await vi.waitFor(() => expect(f.proposals()).toHaveLength(1));
+      f.t.disconnect();
+      expect(await outcome).toEqual({ decision: "declined" });
+      await f.done;
+    } finally {
+      await f.cleanup();
+    }
   });
 });

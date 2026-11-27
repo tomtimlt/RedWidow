@@ -30,6 +30,8 @@ export interface Prefs {
   provider: Provider;
   /** Niveau d'encadrement du chat (fréquence des relances du moteur) ; défaut `standard`. */
   supervision: SupervisionLevel;
+  /** Mode « Sous-agents » du chat (ADR 0054) : l'agent peut proposer des sous-agents que l'utilisateur valide. */
+  subagents: boolean;
 }
 
 export const DEFAULT_PREFS: Prefs = {
@@ -38,6 +40,7 @@ export const DEFAULT_PREFS: Prefs = {
   variant: null,
   provider: "claude",
   supervision: DEFAULT_SUPERVISION,
+  subagents: false,
 };
 
 /** Relit des préférences stockées en les revalidant (le stockage n'est pas une source de confiance). */
@@ -49,6 +52,8 @@ export function parsePrefs(raw: unknown): Prefs {
     variant: isReasoningVariant(r.variant) ? r.variant : null,
     provider: isProvider(r.provider) ? r.provider : "claude",
     supervision: parseSupervision(r.supervision),
+    // Booléen strict : le stockage n'est pas une source de confiance.
+    subagents: r.subagents === true,
   };
 }
 
@@ -79,6 +84,8 @@ export interface ChatControls {
   supervision: SupervisionLevel;
   /** Mode apprentissage (ADR 0010) de ce chat : lecture des cours seule, Bypass inopérant. */
   learning: boolean;
+  /** Mode « Sous-agents » effectif (ADR 0054) : toujours `false` en mode apprentissage. */
+  subagents: boolean;
 }
 
 /** Modèle dont les niveaux comptent : le choix, sinon le réglage machine, sinon la première entrée de la liste. */
@@ -162,5 +169,6 @@ export function buildControls(input: {
     locked: busy,
     supervision: prefs.supervision,
     learning: input.learning === true,
+    subagents: input.learning !== true && prefs.subagents,
   };
 }

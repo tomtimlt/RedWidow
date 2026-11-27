@@ -15,6 +15,7 @@ import {
   createApprovalQueue,
   createRecorder,
   createRedactor,
+  createSubagentBoard,
   createTestAccounts,
   DEFAULT_AGENT_PROFILE,
   deskInstructions,
@@ -26,6 +27,8 @@ import {
   LEARNING_SYSTEM_PROMPT,
   loadPolicy,
   openJournal,
+  SUBAGENTS_GUIDANCE,
+  type SubagentBoard,
   secretsFromEnv,
   type TestAccounts,
 } from "@warband/core";
@@ -247,6 +250,8 @@ export function runEngine({
     );
   });
   let queue: ReturnType<typeof createApprovalQueue> | null = null;
+  // Tableau des sous-agents de la course (ADR 0054) : seulement si le mode est actif et hors apprentissage.
+  let board: SubagentBoard | null = null;
   let started = false;
 
   return new Promise<number>((resolve) => {
@@ -304,6 +309,15 @@ export function runEngine({
         });
         const approvals = createApprovalQueue();
         queue = approvals;
+        // Même tableau pour la gate (règle structurelle sur `Task`) et pour l'outil `propose_subagents`
+        // (via le contexte du runner) ; la proposition part vers l'UI comme une demande d'approbation.
+        if (!learning && params.subagents === true) {
+          board = createSubagentBoard({
+            recorder,
+            onProposal: ({ proposalId, items }) =>
+              send({ v: PROTOCOL_VERSION, type: "subagentsProposal", proposalId, items }),
+          });
+        }
         const gate: ApprovalGate = createApprovalGate({
           policy,
           recorder,
@@ -320,6 +334,7 @@ export function runEngine({
           ...(!learning && { ask: approvals }),
           bypass: mirror,
           now,
+          ...(board !== null && { subagents: board }),
           ...(!learning && program !== undefined && { program }),
           ...(!learning && engagement !== undefined && { engagement }),
         });
@@ -343,6 +358,7 @@ export function runEngine({
           : [
               SCAN_OUTPUT_GUIDANCE,
               deskInstructions(params.profile),
+              board !== null ? SUBAGENTS_GUIDANCE : undefined,
               INTEGRATION_GUIDANCE,
               params.systemPrompt,
             ]
@@ -380,6 +396,7 @@ export function runEngine({
                 mission: { profile: params.profile ?? "out-of-box", containers: containers() },
               }),
             signal: abort.signal,
+            ...(board !== null && { subagents: board }),
             ...(!learning &&
               params.supervision !== undefined && { supervision: params.supervision }),
             ...(!learning && program !== undefined && { program }),
@@ -422,6 +439,8 @@ export function runEngine({
         observeBypass?.();
         observeBypass = undefined;
         // Refuse ce qui restait en attente (interrompu), ferme les flux puis le journal.
+        // Une proposition de sous-agents en attente est refusée avant la fermeture du journal.
+        board?.cancel();
         queue?.close();
         recorder.close();
         await journal.close().catch(() => undefined);
@@ -495,7 +514,15 @@ export function runEngine({
           if (!started) return invalid("type", "state");
           if (message.research && (paramsLearning || !webAvailable))
             return invalid("research", "unavailable");
+          // Texte libre pendant une proposition de sous-agents (ADR 0054) : il vaut refus, avec ce texte
+          // pour note ; il n'est PAS mis en file (lancer un sous-agent exige une nouvelle proposition).
+          if (board?.declineWithText(message.text)) return;
           prompts.push(message.text, message.research === true, message.images);
+          return;
+        case "subagentsAnswer":
+          if (board === null) return invalid("type", "state");
+          // Sans effet si la proposition n'est plus en attente (déjà tranchée, texte libre ou arrêt).
+          board.answer(message.proposalId, message.selected, message.note);
           return;
         case "answer":
           // Sans effet si la demande n'existe pas (inconnue, déjà traitée ou annulée).
@@ -525,6 +552,8 @@ export function runEngine({
           return;
         }
         case "abort":
+          // Proposition en attente : refusée avant l'annulation du run (l'outil rend alors la main).
+          board?.cancel();
           abort.abort(new Error("annulé par l'utilisateur"));
           prompts.end();
           return;
@@ -541,6 +570,7 @@ export function runEngine({
       // Échec fermé : le Bypass s'éteint avant l'annulation du run (aucune décision ultérieure ne l'utilise).
       mirror.off();
       observeBypass?.();
+      board?.cancel();
       abort.abort(new Error("IPC coupée"));
       prompts.end();
       if (!started) return finish(1);

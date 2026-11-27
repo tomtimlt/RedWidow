@@ -229,7 +229,11 @@ export function createChatSession(deps: ChatSessionDeps) {
     variant: string | undefined;
     supervision: SupervisionLevel;
     learning: boolean;
+    /** Mode « Sous-agents » effectif (ADR 0054) : outils et consigne figés pour la course. */
+    subagents: boolean;
   } | null = null;
+  /** Le mode « Sous-agents » ne vaut jamais en apprentissage (lecture des cours seule). */
+  const subagentsOn = () => prefs.subagents && !learning;
   /** Révision de l'authentification : incrémentée à chaque jeton défini ou effacé ; le moteur démarré avec une autre est remplacé. */
   let authRev = 0;
   let appliedBurp = "";
@@ -547,7 +551,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       detached.add(ctl);
       if (controller === ctl) controller = null;
       applied = null;
-      state.approvals.clear();
+      state.clearPending();
       state.setBusy(false);
       stopEngine(ctl);
       touch();
@@ -603,6 +607,11 @@ export function createChatSession(deps: ChatSessionDeps) {
         onApproval: (pending) => {
           if (detached.has(ctl)) return;
           state.approvals.set(pending.toolUseId, toCard(pending));
+          refresh();
+        },
+        onSubagentsProposal: (proposal) => {
+          if (detached.has(ctl)) return;
+          state.setSubagentsProposal(proposal);
           refresh();
         },
         onEnded: (summary) => {
@@ -667,7 +676,7 @@ export function createChatSession(deps: ChatSessionDeps) {
             );
           }
           touch();
-          state.approvals.clear();
+          state.clearPending();
           state.setBusy(false);
           if (!stopping && code !== 0 && code !== null) {
             state.notice(
@@ -689,6 +698,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       variant: picked.variant,
       supervision: prefs.supervision,
       learning,
+      subagents: subagentsOn(),
     };
     if (current) {
       current.provider = prefs.provider;
@@ -719,6 +729,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       ...(picked.effort !== undefined && { effort: picked.effort }),
       ...(picked.variant !== undefined && { variant: picked.variant }),
       ...(!learning && { supervision: prefs.supervision }),
+      ...(subagentsOn() && { subagents: true }),
       ...(conversationContext !== undefined && { conversationContext }),
       ...(maxTurns !== undefined && { maxTurns }),
       ...(picked.ultra?.maxBudgetUsd !== undefined && { maxBudgetUsd: picked.ultra.maxBudgetUsd }),
@@ -891,7 +902,7 @@ export function createChatSession(deps: ChatSessionDeps) {
     detached.add(old);
     controller = null;
     stopping = true;
-    state.approvals.clear();
+    state.clearPending();
     stopEngine(old);
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([
@@ -1155,7 +1166,7 @@ export function createChatSession(deps: ChatSessionDeps) {
       if (previous !== null) detached.add(previous);
       controller = null;
       applied = null;
-      state.approvals.clear();
+      state.clearPending();
       sessionId = undefined;
       transferContext = state
         .view()
@@ -1267,6 +1278,40 @@ export function createChatSession(deps: ChatSessionDeps) {
       prefs = { ...prefs, supervision: parseSupervision(raw) };
       persist(prefsKey, prefs);
       refresh();
+    },
+    /**
+     * Mode « Sous-agents » (ADR 0054), venu de la webview (hostile) : booléen strict, propre au chat,
+     * gelé pendant un tour. Appliqué au message suivant : le moteur inactif est remplacé (même session).
+     */
+    setSubagents(raw: unknown): void {
+      if (state.busy || typeof raw !== "boolean") {
+        refresh();
+        return;
+      }
+      prefs = { ...prefs, subagents: raw };
+      persist(prefsKey, prefs);
+      refresh();
+    },
+    /**
+     * Réponse de l'utilisateur à la proposition de sous-agents en attente (venue de la webview, hostile) :
+     * `proposalId` doit être celui de la proposition affichée, `selected` un sous-ensemble de ses
+     * identifiants (vide = aucun) ; sinon la réponse est ignorée. La carte part sur l'événement
+     * `subagents.decided` du moteur, pas ici.
+     */
+    answerSubagents(proposalId: unknown, selected: unknown, note?: unknown): void {
+      const proposal = state.subagentsProposal;
+      if (
+        proposal === null ||
+        controller === null ||
+        proposalId !== proposal.proposalId ||
+        !Array.isArray(selected) ||
+        (note !== undefined && (typeof note !== "string" || note.length > 2000))
+      )
+        return;
+      const known = new Set(proposal.items.map((item) => item.id));
+      const picked = [...new Set(selected.filter((id): id is string => typeof id === "string"))];
+      if (picked.length !== selected.length || !picked.every((id) => known.has(id))) return;
+      controller.subagentsAnswer(proposal.proposalId, picked, note);
     },
     /** Interrupteur venu de la webview (hostile) : booléen strict, gelé pendant un tour, appliqué au message suivant. */
     setLearning(raw: unknown): void {
@@ -1397,6 +1442,7 @@ export function createChatSession(deps: ChatSessionDeps) {
             want.variant !== applied.variant ||
             prefs.supervision !== applied.supervision ||
             learning !== applied.learning ||
+            subagentsOn() !== applied.subagents ||
             appliedBurp !==
               JSON.stringify([
                 readSettings().burp ?? null,
@@ -1608,6 +1654,7 @@ export function createChatSession(deps: ChatSessionDeps) {
         effort: meta.effort,
         variant: meta.variant ?? null,
         supervision: prefs.supervision,
+        subagents: prefs.subagents,
       };
       persist(prefsKey, prefs);
       if (providerChanged) {

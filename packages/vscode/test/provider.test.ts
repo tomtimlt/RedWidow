@@ -49,6 +49,7 @@ function harness(opts: { requireProvider: boolean }) {
         models: async () => [] as ModelOption[],
         prompt: (text) => void prompts.push(`${id}:${text}`),
         answer: () => undefined,
+        subagentsAnswer: () => undefined,
         abort: () => undefined,
         dispose: () => void disposed.push(id),
         kill: () => void disposed.push(id),

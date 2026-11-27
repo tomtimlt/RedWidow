@@ -176,6 +176,18 @@ describe("contrôles", () => {
     });
     expect(busy).toMatchObject({ learning: true, locked: true });
   });
+  it("sous-agents : faux par défaut, relu en booléen strict, jamais actif en apprentissage", () => {
+    expect(DEFAULT_PREFS.subagents).toBe(false);
+    expect(parsePrefs({ subagents: true }).subagents).toBe(true);
+    for (const bad of ["true", 1, null, {}, undefined]) {
+      expect(parsePrefs({ subagents: bad }).subagents, String(bad)).toBe(false);
+    }
+    expect(parsePrefs(null).subagents).toBe(false);
+    const prefs = { ...DEFAULT_PREFS, subagents: true };
+    expect(buildControls({ ...base, prefs, models: null }).subagents).toBe(true);
+    expect(buildControls({ ...base, prefs, models: null, learning: true }).subagents).toBe(false);
+    expect(buildControls({ ...base, prefs: DEFAULT_PREFS, models: null }).subagents).toBe(false);
+  });
   it("liste inconnue : saisie libre, tous les crans permis", () => {
     const c = buildControls({ ...base, prefs: DEFAULT_PREFS, models: null });
     expect(c.models).toBeNull();

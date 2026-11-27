@@ -113,6 +113,12 @@ export interface ReadonlyInfo {
   canResume: boolean;
 }
 
+/** Proposition de sous-agents telle que la vue la reçoit : un élément par volet, à cocher. */
+export interface SubagentsProposalView {
+  proposalId: string;
+  items: { id: string; name: string; goal: string }[];
+}
+
 /** Ce que la webview affiche : uniquement des chaînes déjà neutralisées, jamais de HTML. */
 export interface ChatView {
   capabilities?: {
@@ -140,6 +146,11 @@ export interface ChatView {
     error?: string;
   };
   approvals: ApprovalCard[];
+  /**
+   * Proposition de sous-agents en attente de la réponse de l'utilisateur (ADR 0054) : textes déjà
+   * neutralisés. Absente sans proposition. Le rendu de la carte n'est pas encore branché.
+   */
+  subagentsProposal?: SubagentsProposalView;
   /** Occupation du contexte au dernier appel modèle (absente tant que le moteur n'en a pas annoncé). */
   context?: { usedTokens: number; windowTokens?: number };
   /** Un tour est en cours. */
@@ -164,6 +175,7 @@ export interface ChatView {
 export function createChatState(before?: string) {
   const items: ChatItem[] = [];
   const approvals = new Map<string, ApprovalCard>();
+  let subagentsProposal: SubagentsProposalView | null = null;
   let busy = false;
   let turnStartedAt: number | null = null;
   let retry: { attempt: number; delayMs: number } | undefined;
@@ -209,6 +221,28 @@ export function createChatState(before?: string) {
 
   return {
     approvals,
+    /** Proposition de sous-agents en attente (textes neutralisés), ou `null`. */
+    get subagentsProposal() {
+      return subagentsProposal;
+    },
+    setSubagentsProposal(proposal: {
+      proposalId: string;
+      items: readonly SubagentsProposalView["items"][number][];
+    }) {
+      subagentsProposal = {
+        proposalId: proposal.proposalId,
+        items: proposal.items.map((item) => ({
+          id: item.id,
+          name: cleanText(item.name, 200),
+          goal: cleanText(item.goal, 4000),
+        })),
+      };
+    },
+    /** Efface ce qui attend une réponse de l'utilisateur : demandes d'approbation et proposition de sous-agents. */
+    clearPending() {
+      approvals.clear();
+      subagentsProposal = null;
+    },
     get dropped() {
       return dropped;
     },
@@ -276,6 +310,7 @@ export function createChatState(before?: string) {
       source = undefined;
       items.length = 0;
       approvals.clear();
+      subagentsProposal = null;
       execTools.clear();
       execProcs.clear();
       busy = false;
@@ -390,6 +425,9 @@ export function createChatState(before?: string) {
             }
             return;
           }
+          case "subagents.decided":
+            if (subagentsProposal?.proposalId === e.proposalId) subagentsProposal = null;
+            return;
           case "tool.result": {
             for (const [id, use] of execTools) if (use === e.toolUseId) execTools.delete(id);
             for (const [id, use] of execProcs) if (use === e.toolUseId) execProcs.delete(id);
@@ -433,6 +471,7 @@ export function createChatState(before?: string) {
         ...(retry && { retry }),
         ...(context && { context: { ...context } }),
         approvals: readonly ? [] : [...approvals.values()],
+        ...(!readonly && subagentsProposal && { subagentsProposal }),
         busy,
         turnStartedAt: busy ? turnStartedAt : null,
         sandbox,

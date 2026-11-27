@@ -61,6 +61,7 @@ function session(
       calls.push("prompt");
     },
     answer: () => {},
+    subagentsAnswer: () => {},
     abort: () => {},
     dispose: () => {},
     kill: () => {},
