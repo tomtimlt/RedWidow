@@ -14,6 +14,7 @@ import {
   type RunContext,
   type RunInput,
   type RunSummary,
+  type SubagentBoard,
 } from "@warband/core";
 import type {
   ClientInit,
@@ -182,7 +183,14 @@ export interface Harness {
 }
 
 export function harness(
-  options: { policy?: Policy; ask?: Asker; recorder?: Recorder; workspace?: string } = {},
+  options: {
+    policy?: Policy;
+    ask?: Asker;
+    recorder?: Recorder;
+    workspace?: string;
+    /** Tableau des sous-agents (ADR 0054) : partagé par la gate et le contexte de la course (mode actif). */
+    subagents?: SubagentBoard;
+  } = {},
 ) {
   const recorder = options.recorder ?? createRecorder({ runId: "r" });
   const events: EngineEvent[] = [];
@@ -193,6 +201,7 @@ export function harness(
     recorder,
     workspace: { cwd },
     ...(options.ask && { ask: options.ask }),
+    ...(options.subagents && { subagents: options.subagents }),
   });
   return {
     events,
@@ -206,7 +215,13 @@ export function harness(
     ) =>
       runner.run(
         { prompt: "go", cwd, model: "fake/m", ...input },
-        { recorder, gate, ...(signal && { signal }), ...context },
+        {
+          recorder,
+          gate,
+          ...(signal && { signal }),
+          ...(options.subagents && { subagents: options.subagents }),
+          ...context,
+        },
       ),
   };
 }

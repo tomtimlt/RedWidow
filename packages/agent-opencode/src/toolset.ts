@@ -26,6 +26,7 @@ import {
   kaliToolSpecs,
   type MissionDesk,
   type Recorder,
+  type SubagentBoard,
   taskToolSpecs,
   WEB_SERVER_INSTRUCTIONS,
   WEB_SERVER_NAME,
@@ -38,6 +39,8 @@ export interface OpencodeToolContext {
   accounts?: import("@warband/core").TestAccounts;
   recorder: Recorder;
   missionDesk?: MissionDesk;
+  /** Tableau des sous-agents (ADR 0054), présent seulement si le mode est actif pour la course. */
+  subagents?: SubagentBoard;
 }
 
 /**
@@ -154,5 +157,8 @@ export function integrationToolset(
 }
 
 export function deskToolset(): OpencodeToolset {
-  return { name: "desk", create: ({ missionDesk }) => deskToolSpecs(missionDesk) };
+  return {
+    name: "desk",
+    create: ({ missionDesk, subagents }) => deskToolSpecs(missionDesk, subagents),
+  };
 }

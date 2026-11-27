@@ -1,10 +1,16 @@
-import { CodedError } from "@warband/core";
+import { CodedError, SUBAGENT_DESCRIPTION, SUBAGENT_PROMPT, SUBAGENT_TYPE } from "@warband/core";
 import { KNOWN_NATIVE_TOOLS } from "./names.js";
 
 type Obj = Record<string, unknown>;
 
 const isObj = (value: unknown): value is Obj =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Agent principal d'OpenCode : celui qui reçoit le mode « Sous-agents » (ADR 0054). */
+const MAIN_AGENT = "build";
+
+/** Outil d'orchestration du bureau vu par OpenCode (`<serveur>_<outil>`) : interdit au sous-agent. */
+const ORCHESTRATION_TOOL = "desk_propose_subagents";
 
 /** Agents intégrés d'OpenCode : leurs permissions propres l'emportent sur celles du niveau supérieur. */
 const BUILTIN_AGENTS = ["build", "plan", "general", "explore"] as const;
@@ -36,6 +42,11 @@ export interface ForcedConfigInput {
   provider?: string;
   /** Skill constant local lu par toutes les sessions du serveur géré, sous-agents compris. */
   methodologyPath?: string;
+  /**
+   * Mode « Sous-agents » actif (ADR 0054) : `task` passe à `ask` pour l'agent principal, limité au type
+   * `redwidow`, et le moteur définit cet agent en mode sous-agent. Absent ou faux : configuration inchangée.
+   */
+  subagents?: boolean;
 }
 
 /**
@@ -50,6 +61,7 @@ export function buildConfig({
   maxTurns,
   provider,
   methodologyPath,
+  subagents = false,
 }: ForcedConfigInput): Obj {
   const permission = forcedPermission(enabledTools);
   const { plugin: _plugin, permission: _permission, ...rest } = user ?? {};
@@ -59,8 +71,24 @@ export function buildConfig({
     const own = isObj(userAgents[name]) ? userAgents[name] : {};
     agent[name] = {
       ...own,
-      permission,
-      ...(name === "build" && maxTurns !== undefined && { maxSteps: maxTurns }),
+      // `ask` ne vaut jamais accord : la demande passe par la gate, qui applique la règle des places
+      // approuvées. Seul le type `redwidow` est lançable ; les autres agents restent en `deny`.
+      permission:
+        subagents && name === MAIN_AGENT
+          ? { ...permission, task: { "*": "deny", [SUBAGENT_TYPE]: "ask" } }
+          : permission,
+      ...(name === MAIN_AGENT && maxTurns !== undefined && { maxSteps: maxTurns }),
+    };
+  }
+  if (subagents) {
+    // Agent défini par le moteur (une définition de l'utilisateur de même nom est écartée) : mêmes
+    // permissions forcées que l'agent principal, sans `task` (pas d'imbrication) ni orchestration.
+    agent[SUBAGENT_TYPE] = {
+      mode: "subagent",
+      description: SUBAGENT_DESCRIPTION,
+      prompt: SUBAGENT_PROMPT,
+      permission: { ...permission, task: "deny", [ORCHESTRATION_TOOL]: "deny" },
+      ...(maxTurns !== undefined && { maxSteps: maxTurns }),
     };
   }
   return {

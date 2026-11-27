@@ -47,6 +47,7 @@ import {
   KNOWN_NATIVE_TOOLS,
   normalizeInput,
   policyToolName,
+  TASK_TOOL,
 } from "./names.js";
 import { launchServer, serverEnv } from "./server.js";
 import { startToolServer, type ToolGuard } from "./tool-server.js";
@@ -252,6 +253,9 @@ interface Call {
   requested: EventOf<"tool.requested"> | undefined;
   finished: boolean;
 }
+
+/** Délai d'un appel MCP du bureau en mode « Sous-agents » : 24 h, l'humain répond quand il veut. */
+const SUBAGENT_TOOL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 
 export function createOpencodeRunner(options: OpencodeRunnerOptions = {}): AgentRunner {
   return {
@@ -519,7 +523,16 @@ function missionPrompt(
 async function runWithOpencodeWithDesk(
   options: OpencodeRunnerOptions,
   input: RunInput,
-  { recorder, gate, signal, onMissionContext, supervision, halted, accounts }: RunContext,
+  {
+    recorder,
+    gate,
+    signal,
+    onMissionContext,
+    supervision,
+    halted,
+    accounts,
+    subagents,
+  }: RunContext,
   missionDesk?: MissionDesk,
 ): Promise<RunSummary> {
   const supervisionSettings = SUPERVISION_SETTINGS[parseSupervision(supervision)];
@@ -583,6 +596,9 @@ async function runWithOpencodeWithDesk(
   for (const name of KNOWN_NATIVE_TOOLS) {
     if (!enabledTools.has(name) && !(name === "edit" && editGroup)) toolsOff[name] = false;
   }
+  // Sous-agents (ADR 0054) : `task` n'est offert à l'agent principal que si le mode est actif ; la
+  // permission (`ask` limité au type redwidow, puis la gate) décide de chaque lancement.
+  if (subagents) delete toolsOff[TASK_TOOL];
 
   const registry = new ToolCallRegistry();
   const serverNames = (options.toolsets ?? []).map((set) => set.name);
@@ -599,6 +615,10 @@ async function runWithOpencodeWithDesk(
   let sessionId: string | undefined;
   let ownsServer = true;
   const family = new Set<string>();
+  /** Session enfant → `toolUseId` du `task` qui l'a lancée (lu dans les métadonnées de l'outil, ADR 0054). */
+  const taskOfSession = new Map<string, string>();
+  /** Événement `tool.requested` par `toolUseId` : parent causal des appels d'un sous-agent. */
+  const requestedByToolUse = new Map<string, EventOf<"tool.requested">>();
 
   // --- budget ---------------------------------------------------------------
   const stepCosts = new Map<string, number>(); // partId → coût
@@ -654,11 +674,38 @@ async function runWithOpencodeWithDesk(
     return unique;
   };
 
+  /**
+   * Identifiant du sous-agent qui émet un appel : la session enfant (jamais celle du fil principal).
+   * Défini dès que la session de l'appel n'est pas la principale, même si son `task` n'est pas connu :
+   * la gate refuse alors l'imbrication en cas de doute (ADR 0054).
+   */
+  const agentIdOf = (sessionID: string | undefined): string | undefined =>
+    sessionID !== undefined &&
+    sessionID !== "" &&
+    sessionId !== undefined &&
+    sessionID !== sessionId
+      ? sessionID
+      : undefined;
+
   const requestedFor = (call: Call, normalized: Obj, policyTool: string) => {
-    call.requested ??= recorder.emit(
-      { kind: "tool.requested", toolUseId: call.toolUseId, tool: policyTool, input: normalized },
-      root.id,
-    ) as EventOf<"tool.requested">;
+    if (call.requested === undefined) {
+      const agentId = agentIdOf(call.sessionID);
+      const agentToolUseId = agentId === undefined ? undefined : taskOfSession.get(agentId);
+      const requested = recorder.emit(
+        {
+          kind: "tool.requested",
+          toolUseId: call.toolUseId,
+          tool: policyTool,
+          input: normalized,
+          ...(agentToolUseId !== undefined && { agentToolUseId }),
+          ...(agentId !== undefined && { agentId }),
+        },
+        // Un appel de sous-agent s'imbrique sous le `task` qui l'a lancé quand on le connaît.
+        (agentToolUseId !== undefined && requestedByToolUse.get(agentToolUseId)?.id) || root.id,
+      ) as EventOf<"tool.requested">;
+      call.requested = requested;
+      requestedByToolUse.set(call.toolUseId, requested);
+    }
     return call.requested;
   };
 
@@ -742,6 +789,10 @@ async function runWithOpencodeWithDesk(
                 /^mcp__(?:web__http_request|(?:kali|exegol)__(?:exec|task_start))$/.test(policyTool)
                   ? accounts.effectiveInput(policyTool, normalized)
                   : normalized,
+              // Appel d'un sous-agent (session enfant) : la gate refuse l'imbrication de `Task`.
+              ...(agentIdOf(call.sessionID) !== undefined && {
+                agentId: agentIdOf(call.sessionID) as string,
+              }),
             },
             abort.signal,
             event.id,
@@ -763,6 +814,8 @@ async function runWithOpencodeWithDesk(
     if (request.messageID === undefined || request.callID === undefined) return undefined;
     const key = `${request.messageID}/${request.callID}`;
     const known = calls.get(key);
+    // La session de la demande de permission fait foi pour savoir si l'appel vient d'un sous-agent.
+    if (known && request.sessionID !== "") known.sessionID = request.sessionID;
     if (known && Object.keys(known.input).length > 0) return known;
     // Le flux n'a pas (encore) livré l'entrée de l'appel : on la relit.
     try {
@@ -774,7 +827,9 @@ async function runWithOpencodeWithDesk(
     } catch {
       // Entrée introuvable : l'appelant refusera.
     }
-    return calls.get(key);
+    const found = calls.get(key);
+    if (found && request.sessionID !== "") found.sessionID = request.sessionID;
+    return found;
   };
 
   const respond = async (request: PermissionRequest, response: PermissionResponse) => {
@@ -811,8 +866,22 @@ async function runWithOpencodeWithDesk(
         const toolUseId = request.id;
         const tool = policyToolName(request.permission, serverNames);
         const input = { patterns: request.patterns, ...request.metadata };
-        const event = recorder.emit({ kind: "tool.requested", toolUseId, tool, input }, root.id);
-        const outcome = await gate.decide({ toolUseId, tool, input }, abort.signal, event.id);
+        const agentId = agentIdOf(request.sessionID);
+        const event = recorder.emit(
+          {
+            kind: "tool.requested",
+            toolUseId,
+            tool,
+            input,
+            ...(agentId !== undefined && { agentId }),
+          },
+          root.id,
+        );
+        const outcome = await gate.decide(
+          { toolUseId, tool, input, ...(agentId !== undefined && { agentId }) },
+          abort.signal,
+          event.id,
+        );
         allow = outcome.decision === "allow";
       } else {
         recorder.emit({
@@ -872,6 +941,13 @@ async function runWithOpencodeWithDesk(
     if (!call) return;
     const state = obj(part.state);
     const status = str(state.status);
+    // `task` annonce sa session enfant dans les métadonnées de l'outil : les appels de cette session
+    // s'imbriqueront sous lui (`agentToolUseId`) et la rattachent à la famille de la course.
+    const child = call.tool === TASK_TOOL ? str(obj(state.metadata).sessionId) : undefined;
+    if (child !== undefined && child !== sessionId) {
+      taskOfSession.set(child, call.toolUseId);
+      family.add(child);
+    }
     if (status === undefined || status === "pending") return;
     if (!call.finished) turn?.tools.add(call.key);
     const requested = emitRequested(call);
@@ -1115,6 +1191,7 @@ async function runWithOpencodeWithDesk(
       tools: set.create({
         recorder,
         ...(missionDesk && { missionDesk }),
+        ...(subagents && { subagents }),
         ...(accounts && { accounts }),
       }),
       ...(["web", "exegol", "kali", "projectfiles"].includes(set.name) && {
@@ -1140,6 +1217,9 @@ async function runWithOpencodeWithDesk(
           url: toolServer.url(set.name),
           headers: { Authorization: `Bearer ${token}` },
           enabled: true,
+          // `propose_subagents` bloque jusqu'à la réponse de l'utilisateur : OpenCode coupe sinon l'appel
+          // MCP à 60 s (constat sur 1.19.0 : « Request timed out »). Mode actif, serveur du bureau seulement.
+          ...(subagents && set.name === "desk" && { timeout: SUBAGENT_TOOL_TIMEOUT_MS }),
         };
       }
     }
@@ -1159,6 +1239,7 @@ async function runWithOpencodeWithDesk(
       ...(methodologyPath !== undefined && { methodologyPath }),
       maxTurns: input.maxTurns,
       ...(options.provider !== undefined && { provider: options.provider }),
+      ...(subagents && { subagents: true }),
     });
 
     if (options.createClient) {
@@ -1254,6 +1335,7 @@ async function runWithOpencodeWithDesk(
         model: `${model.providerID}/${model.modelID}`,
         tools: [
           ...enabledTools,
+          ...(subagents ? [TASK_TOOL] : []),
           ...specs.flatMap((set) => set.tools.map((t) => `mcp__${set.name}__${t.name}`)),
         ],
       },

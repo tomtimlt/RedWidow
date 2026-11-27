@@ -31,6 +31,9 @@ const NATIVE_TOOLS: Readonly<Record<string, string>> = {
   batch: "Batch",
 };
 
+/** Nom OpenCode de l'outil de lancement d'un sous-agent (ramené à `Task` pour la politique). */
+export const TASK_TOOL = "task";
+
 /** Noms OpenCode des outils natifs connus : tout ce qui n'est pas explicitement activé est coupé. */
 export const KNOWN_NATIVE_TOOLS: readonly string[] = Object.keys(NATIVE_TOOLS);
 
@@ -125,6 +128,16 @@ export function normalizeInput(
       copy(input, "timeout", out, "timeout");
       copy(input, "workdir", out, "workdir");
       return out;
+    case "Task": {
+      // Sous-agents (ADR 0054) : la gate compare `description` et `subagent_type`. Si l'entrée de l'appel
+      // n'est pas (encore) connue, la demande de permission les porte dans ses métadonnées.
+      const out: Obj = { ...input };
+      for (const field of ["description", "subagent_type"]) {
+        const known = text(out[field]) ?? text(metadata[field]);
+        if (known !== undefined) out[field] = known;
+      }
+      return out;
+    }
     default:
       return { ...input };
   }

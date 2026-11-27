@@ -9,7 +9,12 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { AGENT_METHODOLOGY, type EngineEvent } from "@warband/core";
+import {
+  AGENT_METHODOLOGY,
+  createRecorder,
+  createSubagentBoard,
+  type EngineEvent,
+} from "@warband/core";
 import { afterAll, describe, expect, it } from "vitest";
 import { createOpencodeRunner, dockerToolset } from "../src/index.js";
 import { fakeDocker, harness } from "./helpers.js";
@@ -25,24 +30,62 @@ interface Plan {
   args: Record<string, unknown>;
 }
 
-/** Faux fournisseur : 1re réponse = appels d'outils du plan, ensuite texte final. */
-function fakeProvider(plan: Plan[]): Promise<{ server: Server; port: number; bodies: unknown[] }> {
+/** Mesures du faux fournisseur sur les requêtes des sous-agents (celles dont les outils n'incluent pas `task`). */
+interface ProviderStats {
+  /** Requêtes de sous-agent simultanément en cours, au maximum. */
+  maxChildConcurrency: number;
+}
+
+/**
+ * Faux fournisseur : 1re réponse = appels d'outils du plan, ensuite texte final. `childPlan` : première
+ * réponse de chaque sous-agent (requête avec outils mais sans `task`), après `childDelayMs`.
+ */
+function fakeProvider(
+  plan: Plan[],
+  options: { childPlan?: Plan[]; childDelayMs?: number } = {},
+): Promise<{ server: Server; port: number; bodies: unknown[]; stats: ProviderStats }> {
   const bodies: unknown[] = [];
+  const stats: ProviderStats = { maxChildConcurrency: 0 };
+  let childActive = 0;
+  let childCalls = 0;
   let planIssued = false;
   const server = createServer((req, res) => {
     let raw = "";
     req.on("data", (c) => {
       raw += c;
     });
-    req.on("end", () => {
-      const body = JSON.parse(raw || "{}") as { messages?: { role: string }[]; tools?: unknown[] };
+    req.on("end", async () => {
+      const body = JSON.parse(raw || "{}") as {
+        messages?: { role: string }[];
+        tools?: { function?: { name?: string } }[];
+      };
       bodies.push(body);
       const send = (o: unknown) => res.write(`data: ${JSON.stringify(o)}\n\n`);
       const base = { id: "c1", object: "chat.completion.chunk", created: 1, model: "m" };
       res.writeHead(200, { "content-type": "text/event-stream" });
       const toolsAnswered = (body.messages ?? []).some((m) => m.role === "tool");
-      if ((body.tools?.length ?? 0) > 0 && !toolsAnswered && plan.length > 0 && !planIssued) {
+      const isChild =
+        planIssued &&
+        (body.tools?.length ?? 0) > 0 &&
+        !body.tools?.some((t) => t.function?.name === "task");
+      let calls: Plan[] = [];
+      if (isChild) {
+        childActive++;
+        stats.maxChildConcurrency = Math.max(stats.maxChildConcurrency, childActive);
+        if (options.childDelayMs) await new Promise((r) => setTimeout(r, options.childDelayMs));
+        childActive--;
+        if (!toolsAnswered && options.childPlan) calls = options.childPlan;
+      } else if (
+        (body.tools?.length ?? 0) > 0 &&
+        !toolsAnswered &&
+        plan.length > 0 &&
+        !planIssued
+      ) {
         planIssued = true;
+        calls = plan;
+      }
+      if (calls.length > 0) {
+        const tag = isChild ? `child${++childCalls}` : "call";
         send({
           ...base,
           choices: [
@@ -51,9 +94,9 @@ function fakeProvider(plan: Plan[]): Promise<{ server: Server; port: number; bod
               delta: {
                 role: "assistant",
                 content: null,
-                tool_calls: plan.map((p, i) => ({
+                tool_calls: calls.map((p, i) => ({
                   index: i,
-                  id: `call_${i}`,
+                  id: `${tag}_${i}`,
                   type: "function",
                   function: { name: p.name, arguments: JSON.stringify(p.args) },
                 })),
@@ -86,7 +129,7 @@ function fakeProvider(plan: Plan[]): Promise<{ server: Server; port: number; bod
   });
   return new Promise((resolve) =>
     server.listen(0, "127.0.0.1", () =>
-      resolve({ server, port: (server.address() as AddressInfo).port, bodies }),
+      resolve({ server, port: (server.address() as AddressInfo).port, bodies, stats }),
     ),
   );
 }
@@ -99,7 +142,14 @@ afterAll(() => {
 /** Joue un plan d'appels d'outils contre le vrai binaire et renvoie le journal. */
 async function playPlan(
   plan: Plan[],
-  extra: { cwd?: string; delegate?: boolean; isolate?: boolean } = {},
+  extra: {
+    cwd?: string;
+    isolate?: boolean;
+    /** Mode « Sous-agents » actif : descriptions des places approuvées (ADR 0054). */
+    subagents?: string[];
+    childPlan?: Plan[];
+    childDelayMs?: number;
+  } = {},
 ) {
   const cwd = extra.cwd ?? mkdtempSync(join(tmpdir(), "oc-contract-"));
   writeFileSync(join(cwd, "a.txt"), "bonjour");
@@ -124,17 +174,27 @@ async function playPlan(
     );
   }
   const docker = await fakeDocker();
-  const provider = await fakeProvider(plan);
-  servers.push(provider.server);
-  const h = harness({
-    workspace: cwd,
-    ...(extra.delegate && { ask: async () => ({ decision: "allow" as const }) }),
+  const provider = await fakeProvider(plan, {
+    ...(extra.childPlan && { childPlan: extra.childPlan }),
+    ...(extra.childDelayMs && { childDelayMs: extra.childDelayMs }),
   });
+  servers.push(provider.server);
+  const recorder = createRecorder({ runId: "r" });
+  const board = extra.subagents ? createSubagentBoard({ recorder }) : undefined;
+  if (board && extra.subagents) {
+    // Proposition acceptée en entier, comme le ferait la carte de l'utilisateur.
+    const accepted = board.propose(
+      extra.subagents.map((name) => ({ name, goal: `volet ${name}` })),
+    );
+    board.answer(board.pending()?.proposalId ?? "", board.pending()?.items.map((i) => i.id) ?? []);
+    await accepted;
+  }
+  const h = harness({ workspace: cwd, recorder, ...(board && { subagents: board }) });
   const runner = createOpencodeRunner({
     binary: BIN as string,
     ...(extra.isolate && { isolateConfig: true }),
     toolsets: [dockerToolset({ binary: docker.bin, argsPrefix: docker.argsPrefix })],
-    builtinTools: ["read", "write", "glob", "grep", ...(extra.delegate ? ["task"] : [])],
+    builtinTools: ["read", "write", "glob", "grep"],
     config: {
       provider: {
         fake: {
@@ -165,7 +225,7 @@ async function playPlan(
   }
   const ev = <K extends EngineEvent["kind"]>(kind: K) =>
     h.events.filter((e): e is Extract<EngineEvent, { kind: K }> => e.kind === kind);
-  return { summary, ev, cwd, docker, provider, events: h.events };
+  return { summary, ev, cwd, docker, provider, events: h.events, board };
 }
 
 describe.skipIf(!BIN)("contrat OpenCode réel (faux fournisseur local)", () => {
@@ -173,7 +233,7 @@ describe.skipIf(!BIN)("contrat OpenCode réel (faux fournisseur local)", () => {
     const r = await playPlan([], { isolate: true });
     expect(r.summary).toMatchObject({ status: "success", result: "terminé" });
   }, 90_000);
-  it("transmet le skill complet une seule fois au parent et au sous-agent natif", async () => {
+  it("transmet le skill complet une seule fois au parent et au sous-agent redwidow", async () => {
     const childPrompt = "Contrôle local de la méthode : réponds terminé.";
     const r = await playPlan(
       [
@@ -182,11 +242,11 @@ describe.skipIf(!BIN)("contrat OpenCode réel (faux fournisseur local)", () => {
           args: {
             description: "Vérifier le contexte",
             prompt: childPrompt,
-            subagent_type: "general",
+            subagent_type: "redwidow",
           },
         },
       ],
-      { delegate: true },
+      { subagents: ["Vérifier le contexte"] },
     );
     expect(r.summary.status).toBe("success");
     expect(r.ev("tool.requested").some((e) => e.tool === "Task")).toBe(true);
@@ -211,6 +271,77 @@ describe.skipIf(!BIN)("contrat OpenCode réel (faux fournisseur local)", () => {
       expect(system).toContain(AGENT_METHODOLOGY);
       expect(system.split(AGENT_METHODOLOGY)).toHaveLength(2);
     }
+  }, 90_000);
+
+  it("sous-agents : deux task d'un même message tournent en parallèle, leurs appels portent agentId et agentToolUseId", async () => {
+    const task = (description: string): Plan => ({
+      name: "task",
+      args: { description, prompt: `Volet ${description}`, subagent_type: "redwidow" },
+    });
+    const r = await playPlan([task("Domaines"), task("API")], {
+      subagents: ["Domaines", "API"],
+      childPlan: [{ name: "read", args: { filePath: "a.txt" } }],
+      childDelayMs: 700,
+    });
+    expect(r.summary).toMatchObject({ status: "success", result: "terminé" });
+    // OpenCode exécute les deux task en même temps (constat sur 1.19.0).
+    expect(r.provider.stats.maxChildConcurrency).toBeGreaterThanOrEqual(2);
+    const requested = r.ev("tool.requested");
+    const tasks = requested.filter((e) => e.tool === "Task");
+    expect(tasks.map((e) => e.toolUseId).sort()).toEqual(["call_0", "call_1"]);
+    expect(
+      r.ev("approval.decided").filter((d) => tasks.some((t) => t.toolUseId === d.toolUseId)),
+    ).toEqual([
+      expect.objectContaining({
+        decision: "allow",
+        reason: expect.objectContaining({ code: "subagents.approved" }),
+      }),
+      expect.objectContaining({
+        decision: "allow",
+        reason: expect.objectContaining({ code: "subagents.approved" }),
+      }),
+    ]);
+    // Les lectures des sous-agents s'imbriquent sous leur Task, avec l'identifiant de la session enfant.
+    const reads = requested.filter((e) => e.tool === "Read");
+    expect(reads).toHaveLength(2);
+    for (const read of reads) {
+      const parent = tasks.find((t) => t.toolUseId === read.agentToolUseId);
+      expect(parent).toBeDefined();
+      expect(read.parentId).toBe(parent?.id);
+      expect(read.agentId).toMatch(/^ses_/);
+    }
+    expect(new Set(reads.map((e) => e.agentId)).size).toBe(2);
+    expect(new Set(reads.map((e) => e.agentToolUseId)).size).toBe(2);
+    // Les places sont libérées par les résultats des Task.
+    expect(r.board?.running()).toBe(0);
+    expect(r.board?.places()).toEqual([]);
+  }, 90_000);
+
+  it("sous-agents : un type autre que redwidow n'est jamais lancé", async () => {
+    const r = await playPlan(
+      [
+        {
+          name: "task",
+          args: { description: "Domaines", prompt: "CHILD-GENERAL", subagent_type: "general" },
+        },
+      ],
+      { subagents: ["Domaines"] },
+    );
+    // Aucun sous-agent n'a reçu le prompt (il n'apparaît que dans l'appel d'outil du fil principal).
+    const bodies = r.provider.bodies as { messages: { role: string; content: unknown }[] }[];
+    expect(
+      bodies.some((b) =>
+        b.messages.some(
+          (m) => m.role === "user" && JSON.stringify(m.content).includes("CHILD-GENERAL"),
+        ),
+      ),
+    ).toBe(false);
+    expect(r.ev("approval.decided").some((d) => d.reason.code === "subagents.approved")).toBe(
+      false,
+    );
+    // La place reste intacte pour un lancement correct.
+    expect(r.board?.running()).toBe(0);
+    expect(r.board?.places().map((p) => p.description)).toEqual(["Domaines"]);
   }, 90_000);
 
   it("autorise les appels permis par la politique (natif + MCP) et corrèle les processus", async () => {
