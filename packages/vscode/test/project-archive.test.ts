@@ -65,8 +65,7 @@ async function sourceProject(
     id,
     name,
     workspace,
-    container: "kali-1",
-    share: m.parent,
+    primary: "kali-1",
   });
   await writeFile(join(workspace, "notes", "a.md"), "bonjour\n");
   await mkdir(join(workspace, "scans", "deep"), { recursive: true });
@@ -187,7 +186,7 @@ describe("archive de projet .rwproj", () => {
       expect((await stat(join(ws, "scans", "deep"))).mode & 0o777).toBe(0o700);
     }
     expect(result.project.workspace).toBe(join(b.projects, "mon-projet"));
-    expect(result.project).toMatchObject({ containers: ["kali-2"], primary: "kali-2" });
+    expect(result.project).toMatchObject({ primary: "kali-2" });
     expect(await residue(b.projects)).toEqual(["mon-projet"]);
     expect((await readProjects(b.configDir))?.projects.map((p) => p.id)).toEqual([src.id]);
   });

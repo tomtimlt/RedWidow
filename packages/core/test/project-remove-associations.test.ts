@@ -7,9 +7,9 @@ import { createProject, readProjects, removeContainerAssociations } from "../src
 describe("nettoyage global des associations de conteneur", () => {
   it("préserve projets, actif, workspace, primary distinct et trouvailles", async () => {
     const configDir = await mkdtemp(join(tmpdir(), "warband-associations-"));
-    await createProject(configDir, { containers: ["kali-1"], name: "Un", workspace: "/tmp/un" });
+    await createProject(configDir, { primary: "kali-1", name: "Un", workspace: "/tmp/un" });
     await createProject(configDir, {
-      containers: ["kali-1"],
+      primary: "kali-1",
       name: "Deux",
       workspace: "/tmp/deux",
     });
@@ -17,7 +17,6 @@ describe("nettoyage global des associations de conteneur", () => {
     if (file === null) throw new Error("projets absents");
     const projects = file.projects.map((p, i) => ({
       ...p,
-      containers: ["supprime", "garde"],
       primary: i === 0 ? "supprime" : "garde",
     }));
     await writeFile(join(configDir, "project.json"), JSON.stringify({ ...file, projects }));
@@ -27,7 +26,6 @@ describe("nettoyage global des associations de conteneur", () => {
       ...file,
       projects: projects.map(({ primary, ...p }) => ({
         ...p,
-        containers: ["garde"],
         ...(primary === "garde" && { primary }),
       })),
     });

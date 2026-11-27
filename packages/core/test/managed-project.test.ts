@@ -17,7 +17,6 @@ const fixture = async () => {
   await mkdir(join(base, "workspaces"));
   return { base, config: join(base, "config"), root: join(base, "workspaces") };
 };
-const target = (share: string) => ({ container: "kali-1", share });
 afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
@@ -31,13 +30,15 @@ it("réglage de racine : absolu explicite uniquement, plus de défaut Exegol", (
 
 it("réserve automatiquement le slug, prépare les catégories et ne réutilise aucun dossier", async () => {
   const { config, root } = await fixture();
-  const first = await createManagedProject(config, "Démo / Projet", target(root));
-  expect(first.workspace).toBe(join(root, "RedWidow", "projects", "demo-projet"));
-  expect(first).toMatchObject({ containers: ["kali-1"], primary: "kali-1" });
+  const first = await createManagedProject(config, "Démo / Projet", root);
+  expect(first.workspace).toBe(join(root, "projets", "demo-projet"));
+  expect(first).not.toHaveProperty("primary");
+  expect(first).not.toHaveProperty("containers");
+  expect((await readdir(root)).sort()).toEqual(["conteneurs", "projets", "ressources"]);
   expect(await readdir(first.workspace)).toEqual([...PROJECT_WORKSPACE_FOLDERS].sort());
   await writeFile(join(first.workspace, "notes", "preuve.txt"), "à conserver");
-  const second = await createManagedProject(config, "Démo / Projet", target(root));
-  expect(second.workspace).toBe(join(root, "RedWidow", "projects", "demo-projet-2"));
+  const second = await createManagedProject(config, "Démo / Projet", root);
+  expect(second.workspace).toBe(join(root, "projets", "demo-projet-2"));
   expect(await readFile(join(first.workspace, "notes", "preuve.txt"), "utf8")).toBe("à conserver");
   if (process.platform !== "win32") expect((await stat(second.workspace)).mode & 0o777).toBe(0o700);
 });
@@ -46,8 +47,8 @@ it.each(["CON", "NUL", "COM1", "LPT9", "...", "../../dossier"])(
   "nom %s : slug portable sans sortie de racine",
   async (name) => {
     const { config, root } = await fixture();
-    const project = await createManagedProject(config, name, target(root));
-    expect(project.workspace).toBe(join(root, "RedWidow", "projects", basename(project.workspace)));
+    const project = await createManagedProject(config, name, root);
+    expect(project.workspace).toBe(join(root, "projets", basename(project.workspace)));
     expect(basename(project.workspace)).toMatch(/^[a-z0-9_-]{1,60}$/);
     expect(basename(project.workspace)).not.toMatch(/^(con|nul|com1|lpt9)$/i);
   },
@@ -55,14 +56,14 @@ it.each(["CON", "NUL", "COM1", "LPT9", "...", "../../dossier"])(
 
 it("un nom invalide ne crée rien et les projets existants restent à leur place", async () => {
   const { config, root, base } = await fixture();
-  await expect(createManagedProject(config, "", target(root))).rejects.toThrow();
+  await expect(createManagedProject(config, "", root)).rejects.toThrow();
   expect(await readdir(root)).toEqual([]);
   const legacy = await createProject(config, {
-    containers: ["kali-1"],
+    primary: "kali-1",
     name: "Existant",
     workspace: base,
   });
-  await createManagedProject(config, "Nouveau", target(root));
+  await createManagedProject(config, "Nouveau", root);
   expect(
     (await readProjects(config))?.projects.find((project) => project.id === legacy.id)?.workspace,
   ).toBe(base);
@@ -73,44 +74,33 @@ it("refuse une racine symbolique et un ancêtre symbolique sans écrire dans leu
   const other = await fixture();
   const link = join(base, "raccourci");
   await symlink(other.base, link, process.platform === "win32" ? "junction" : "dir");
-  await expect(createManagedProject(config, "Projet", target(link))).rejects.toMatchObject({
+  await expect(createManagedProject(config, "Projet", link)).rejects.toMatchObject({
     code: "project.parentInvalid",
   });
-  await expect(
-    createManagedProject(config, "Projet", target(join(link, "nouveau"))),
-  ).rejects.toMatchObject({ code: "project.parentInvalid" });
+  await expect(createManagedProject(config, "Projet", join(link, "nouveau"))).rejects.toMatchObject(
+    { code: "project.parentInvalid" },
+  );
   expect(await readdir(other.base)).toEqual(["workspaces"]);
 });
 
-it("sans conteneur (vide, absent, invalide) : project.containerRequired, rien n'est créé", async () => {
+it("aucun conteneur requis ; primary optionnel validé", async () => {
   const { config, root } = await fixture();
-  for (const container of ["", undefined, "a\0b"])
-    await expect(
-      createManagedProject(config, "Projet", { container, share: root } as never),
-    ).rejects.toMatchObject({ code: "project.containerRequired" });
-  await expect(createManagedProject(config, "Projet", undefined as never)).rejects.toMatchObject({
-    code: "project.containerRequired",
+  const sans = await createManagedProject(config, "Sans", root);
+  expect(sans).not.toHaveProperty("primary");
+  const avec = await createManagedProject(config, "Avec", root, "kali-1");
+  expect(avec.primary).toBe("kali-1");
+  await expect(createManagedProject(config, "Mauvais", root, "a\0b")).rejects.toMatchObject({
+    code: "project.invalid",
   });
-  expect(await readdir(root)).toEqual([]);
-  expect(await readProjects(config)).toBeNull();
-});
-
-it("createProject bas niveau : refuse une liste de conteneurs vide", async () => {
-  const { config, base } = await fixture();
-  await expect(
-    createProject(config, { name: "x", workspace: base, containers: [] }),
-  ).rejects.toMatchObject({ code: "project.containerRequired" });
-  expect(await readProjects(config)).toBeNull();
+  expect(await readdir(join(root, "projets"))).toEqual(["avec", "sans"]);
+  const file = JSON.parse(await readFile(join(config, "project.json"), "utf8"));
+  expect(file.projects[0]).not.toHaveProperty("containers");
 });
 
 it("un parent trop long ne crée aucun dossier", async () => {
   const { base, root, config } = await fixture();
   await expect(
-    createManagedProject(
-      config,
-      "Projet",
-      target(join(base, ...Array<string>(100).fill("long-segment"))),
-    ),
+    createManagedProject(config, "Projet", join(base, ...Array<string>(100).fill("long-segment"))),
   ).rejects.toMatchObject({ code: "project.parentInvalid" });
   expect(await readdir(root)).toEqual([]);
 });
@@ -127,9 +117,7 @@ it("parent absent, relatif, vide, fichier ou sensible : refusé sans rien créer
     ...(process.platform === "win32" ? [] : ["/etc"]),
   ];
   for (const parent of refused)
-    await expect(
-      createManagedProject(config, "Projet", target(parent as string)),
-    ).rejects.toMatchObject({
+    await expect(createManagedProject(config, "Projet", parent as string)).rejects.toMatchObject({
       code: "project.parentInvalid",
     });
   expect(await readdir(root)).toEqual([]);

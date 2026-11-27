@@ -453,17 +453,21 @@ symlinkSync(outsideRoot, linkToOutside);
 symlinkSync(join(shareRoot, "proj"), linkToInside);
 afterAll(() => rmSync(tempRoot, { recursive: true, force: true }));
 
+/** Fiche v2 (ADR 0054) : plus de liste de conteneurs ; `names` n'en retient que le premier (primary). */
 const projectFile = (
-  containers: readonly string[],
+  names: readonly string[],
   workspace = "/host/ws",
   active = true,
   primary?: string,
-) => ({
-  activeId: active ? "p1" : null,
-  projects: [
-    { id: "p1", name: "a", workspace, containers, ...(primary !== undefined && { primary }) },
-  ],
-});
+) => {
+  const chosen = primary ?? names[0];
+  return {
+    activeId: active ? "p1" : null,
+    projects: [
+      { id: "p1", name: "a", workspace, ...(chosen !== undefined && { primary: chosen }) },
+    ],
+  };
+};
 
 describe("loadCockpitView", () => {
   const rows = [
@@ -615,7 +619,7 @@ describe("loadCockpitView", () => {
     expect(view.containers).toEqual([]);
   });
 
-  it("zéro ou plusieurs noms : pas de bannière, les noms présents sont liés", async () => {
+  it("zéro nom : pas de bannière ; le conteneur désigné est lié", async () => {
     const deps = {
       resolveBin: (n: string) => (n === "docker" ? "/d/docker" : null),
       createDocker: () => ({
@@ -628,21 +632,12 @@ describe("loadCockpitView", () => {
     expect(none.linkedBanner).toBeNull();
     expect(none.linked).toBe("none");
     expect(none.containers.find((c) => c.name === "a")?.canLink).toBe(true);
-    const many = await loadCockpitView({
-      ...deps,
-      readProj: async () => projectFile(["a", "c"], ws),
-    });
-    expect(many.linkedBanner).toBeNull();
-    expect(many.linked).toBe("none");
-    expect(many.containers.find((c) => c.name === "a")).toMatchObject({
+    const one = await loadCockpitView({ ...deps, readProj: async () => projectFile(["c"], ws) });
+    expect(one.containers.find((c) => c.name === "c")).toMatchObject({
       linked: true,
       canLink: false,
     });
-    expect(many.containers.find((c) => c.name === "c")).toMatchObject({
-      linked: true,
-      canLink: false,
-    });
-    expect(many.containers.find((c) => c.name === "b")?.linked).toBe(false);
+    expect(one.containers.find((c) => c.name === "b")?.linked).toBe(false);
   });
 
   it("un Kali déjà dans l'allowlist reste non liable", async () => {
@@ -701,16 +696,13 @@ describe("loadCockpitView", () => {
     expect(view.containers.find((c) => c.name === "a")?.primary).toBe(false);
   });
 
-  it("deux conteneurs liés et un primary posé : la ligne primary seule l'indique, et la bannière le suit (corrige le bug)", async () => {
+  it("un primary posé : la bannière le suit", async () => {
     const view = await loadCockpitView({
       resolveBin: (n) => (n === "docker" ? "/d/docker" : null),
-      readProj: async () => projectFile(["a", "c"], "/host/ws", true, "c"),
+      readProj: async () => projectFile([], "/host/ws", true, "c"),
       createDocker: () => ({ listLabelPrefix: async () => rows }),
     });
     expect(view.containers.find((c) => c.name === "a")?.primary).toBe(false);
-    expect(view.containers.find((c) => c.name === "c")?.primary).toBe(true);
-    expect(view.containers.find((c) => c.name === "b")?.primary).toBe(false);
-    // Avant le correctif, `linkedBanner` restait `null` ici (il ne regardait que l'unique).
     expect(view.linkedBanner).toMatchObject({ name: "c", state: "running" });
     expect(view.linked).toBe("running");
   });
@@ -842,7 +834,7 @@ describe("linkedProjectStatus", () => {
     ).toBeNull();
   });
 
-  it("un seul nom décrit la ligne ; zéro ou plusieurs n'en choisissent pas", async () => {
+  it("primary décrit la ligne ; sans primary rien n'est choisi", async () => {
     const one = await linkedProjectStatus({
       readProj: async () => projectFile(["a"], "/host/ws"),
       createDocker: () => ({ listLabelPrefix: async () => [row] }),
@@ -864,8 +856,8 @@ describe("linkedProjectStatus", () => {
       state: "absent",
     });
     let called = false;
-    const many = await linkedProjectStatus({
-      readProj: async () => projectFile(["a", "b"], "/proj"),
+    const none = await linkedProjectStatus({
+      readProj: async () => projectFile([], "/proj"),
       createDocker: () => ({
         listLabelPrefix: async () => {
           called = true;
@@ -873,7 +865,7 @@ describe("linkedProjectStatus", () => {
         },
       }),
     });
-    expect(many).toEqual({ workspace: "/proj", container: null, image: null, state: null });
+    expect(none).toEqual({ workspace: "/proj", container: null, image: null, state: null });
     expect(called).toBe(false);
   });
 

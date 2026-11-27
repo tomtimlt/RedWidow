@@ -90,7 +90,7 @@ describe("suppression humaine d'un conteneur", () => {
   it("conserve les associations lorsque Docker échoue", async () => {
     const { configDir, deps, docker } = await setup();
     await createProject(configDir, {
-      containers: ["kali-1"],
+      primary: "kali-1",
       name: "Projet",
       workspace: "/tmp/work",
     });
@@ -112,9 +112,9 @@ describe("suppression humaine d'un conteneur", () => {
   });
   it("nettoie tous les projets et primary sans toucher aux workspaces, et reste idempotent", async () => {
     const { configDir, deps, confirm } = await setup();
-    await createProject(configDir, { containers: ["kali-1"], name: "Un", workspace: "/tmp/un" });
+    await createProject(configDir, { primary: "kali-1", name: "Un", workspace: "/tmp/un" });
     await createProject(configDir, {
-      containers: ["kali-1"],
+      primary: "kali-1",
       name: "Deux",
       workspace: "/tmp/deux",
     });
@@ -122,16 +122,13 @@ describe("suppression humaine d'un conteneur", () => {
     if (file === null) throw new Error("projets absents");
     const projects = file.projects.map((p) => ({
       ...p,
-      containers: ["kali-lab", "autre"],
       primary: "kali-lab",
     }));
     await writeFile(join(configDir, "project.json"), JSON.stringify({ ...file, projects }));
     await removeListedContainer("kali-lab", deps);
     expect(confirm.mock.calls[0]?.[0].projects).toHaveLength(2);
     const after = await readProjects(configDir);
-    expect(after?.projects).toEqual(
-      projects.map(({ primary: _primary, ...p }) => ({ ...p, containers: ["autre"] })),
-    );
+    expect(after?.projects).toEqual(projects.map(({ primary: _primary, ...p }) => p));
     await removeContainerAssociations(configDir, "kali-lab");
     expect(await readProjects(configDir)).toEqual(after);
   });

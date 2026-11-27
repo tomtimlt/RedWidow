@@ -21,9 +21,11 @@ import {
   isInsideShare,
   nextContainerName,
   PROJECT_WORKSPACE_FOLDERS,
+  prepareCommonRoot,
   prepareContainerProjectWorkspace,
   prepareProjectWorkspace,
   prepareRedwidowRoot,
+  projectContainerPath,
   projectsParent,
   reserveContainerFolder,
 } from "../src/project-workspace.js";
@@ -42,7 +44,6 @@ async function fixture() {
     id: randomUUID(),
     name: "Projet démo / $(id)",
     workspace: root,
-    containers: ["kali-1"],
   };
   const calls: readonly string[][] = [];
   const argv: string[][] = calls as string[][];
@@ -241,24 +242,181 @@ it("isInsideShare : égal ou dedans, jamais un voisin au préfixe commun, faux s
   expect(await isInsideShare(share, lien)).toBe(false);
 });
 
-it("projectPlacement : ok, noContainer, outsideShare", () => {
-  const project = { workspace: "/partage/RedWidow/projects/p", containers: ["kali-1", "kali-2"] };
-  const mounts = (entries: [string, string | undefined][]) => new Map(entries);
-  expect(projectPlacement(project, mounts([["kali-1", "/partage"]]))).toBe("ok");
+it("projectContainerPath : sous un montage, cible + chemin relatif POSIX ; sinon undefined", () => {
+  const mounts = [{ source: "/racine/conteneurs/kali-1", target: "/workspace" }];
+  expect(projectContainerPath("/racine/conteneurs/kali-1/p", mounts, "linux")).toBe("/workspace/p");
+  expect(projectContainerPath("/racine/conteneurs/kali-1", mounts, "linux")).toBe("/workspace");
+  expect(projectContainerPath("/racine/conteneurs/kali-10/p", mounts, "linux")).toBeUndefined();
+  expect(projectContainerPath("/ailleurs/p", mounts, "linux")).toBeUndefined();
+  expect(projectContainerPath("/racine/p", [], "linux")).toBeUndefined();
+});
+
+it("projectContainerPath : nouvelle racine (projets monté sous /workspace) et ancien partage", () => {
+  const mounts = [
+    { source: "/racine/conteneurs/kali-1", target: "/workspace" },
+    { source: "/racine/projets", target: "/workspace/projets" },
+    { source: "/racine/ressources", target: "/workspace/ressources" },
+  ];
+  expect(projectContainerPath("/racine/projets/client/scans", mounts, "linux")).toBe(
+    "/workspace/projets/client/scans",
+  );
+  // Ancien partage (ADR 0053) : un seul montage /workspace.
+  const ancien = [{ source: "/partage", target: "/workspace" }];
+  expect(projectContainerPath("/partage/RedWidow/projects/p", ancien, "linux")).toBe(
+    "/workspace/RedWidow/projects/p",
+  );
+});
+
+it("projectContainerPath : la source la plus spécifique l'emporte, quel que soit l'ordre", () => {
+  const large = { source: "/racine", target: "/racine-vue" };
+  const fin = { source: "/racine/projets", target: "/p" };
+  for (const mounts of [
+    [large, fin],
+    [fin, large],
+  ])
+    expect(projectContainerPath("/racine/projets/x", mounts, "linux")).toBe("/p/x");
+  expect(projectContainerPath("/racine/autre/x", [large, fin], "linux")).toBe(
+    "/racine-vue/autre/x",
+  );
+});
+
+it("projectContainerPath : chemin Docker Desktop /host_mnt/c/... et Windows", () => {
+  const desktop = [
+    { source: "/host_mnt/c/Users/Lab/RedWidow/projets", target: "/workspace/projets" },
+  ];
+  expect(projectContainerPath("/mnt/c/Users/Lab/RedWidow/projets/p", desktop, "linux")).toBe(
+    "/workspace/projets/p",
+  );
+  const windows = [{ source: "/run/desktop/mnt/host/c/Users/Lab/RedWidow", target: "/workspace" }];
+  expect(projectContainerPath("C:\\Users\\Lab\\RedWidow\\projets\\p x", windows, "win32")).toBe(
+    "/workspace/projets/p x",
+  );
+  // Casse ignorée sous Windows, voisin refusé.
+  expect(
+    projectContainerPath("c:\\users\\lab\\redwidow-autre\\p", windows, "win32"),
+  ).toBeUndefined();
+  const natif = [{ source: "D:\\Racine", target: "/workspace" }];
+  expect(projectContainerPath("d:\\racine\\projets\\p", natif, "win32")).toBe(
+    "/workspace/projets/p",
+  );
+});
+
+it("prepareContainerProjectWorkspace : alias vers le chemin calculé (montage projets sous /workspace)", async () => {
+  const { root, project, calls } = await fixture();
+  // Le conteneur monte le dossier du projet sous /workspace/projets/<nom>.
+  const docker = {
+    listLabelPrefix: async () => [
+      {
+        name: "kali-1",
+        state: "running" as const,
+        family: "kali" as const,
+        image: "kali",
+        mounts: [{ source: root, target: "/workspace/projets/x", readonly: false }],
+      },
+    ],
+    execWorkspace: async (_container: string, command: readonly string[]) => {
+      (calls as string[][]).push([...command]);
+      return command[0] === "cat"
+        ? [await readFile(join(root, basename(command[1] as string)), "utf8")]
+        : [];
+    },
+  };
+  const target = await prepareContainerProjectWorkspace(project, "kali-1", docker);
+  expect(calls[0]?.[1]).toContain("/workspace/projets/x/");
+  expect(calls[1]?.at(-2)).toBe(target);
+  expect(calls[1]?.at(-1)).toBe("/workspace/projets/x");
+});
+
+it("prepareContainerProjectWorkspace : conteneur qui ne voit pas le projet, même sans liste de conteneurs", async () => {
+  const { project, docker } = await fixture();
+  const other = await fixture();
+  await expect(
+    prepareContainerProjectWorkspace(project, "kali-1", {
+      ...docker,
+      listLabelPrefix: async () => [
+        {
+          name: "kali-1",
+          state: "running",
+          family: "kali",
+          image: "kali",
+          mounts: [{ source: other.root, target: "/workspace", readonly: false }],
+        },
+      ],
+    }),
+  ).rejects.toMatchObject({ code: "project.workspaceNotMounted" });
+  await expect(
+    prepareContainerProjectWorkspace(project, "kali-1", {
+      ...docker,
+      listLabelPrefix: async () => [
+        {
+          name: "kali-1",
+          state: "stopped",
+          family: "kali",
+          image: "kali",
+          workspace: project.workspace,
+        },
+      ],
+    }),
+  ).rejects.toMatchObject({ code: "project.notRunning" });
+});
+
+it("projectPlacement : un conteneur qui ne voit pas le projet ne suffit plus, deux conteneurs oui", () => {
+  const project = { workspace: "/racine/projets/p" };
+  const mounts = (entries: [string, { source: string; target: string }[]][]) => new Map(entries);
+  const voit = [{ source: "/racine/projets", target: "/workspace/projets" }];
+  const nevoitpas = [{ source: "/autre", target: "/workspace" }];
+  expect(projectPlacement(project, mounts([["kali-1", voit]]))).toBe("ok");
+  expect(projectPlacement(project, mounts([["kali-1", nevoitpas]]))).toBe("noVisibleContainer");
   expect(
     projectPlacement(
       project,
       mounts([
-        ["kali-1", "/autre"],
-        ["kali-2", "/partage/RedWidow"],
+        ["kali-1", nevoitpas],
+        ["kali-2", voit],
       ]),
     ),
   ).toBe("ok");
-  expect(projectPlacement({ ...project, containers: [] }, mounts([["kali-1", "/partage"]]))).toBe(
-    "noContainer",
-  );
-  expect(projectPlacement(project, mounts([["kali-1", "/autre"]]))).toBe("outsideShare");
-  expect(projectPlacement(project, mounts([["kali-1", "/partage-voisin"]]))).toBe("outsideShare");
-  expect(projectPlacement(project, mounts([["kali-1", undefined]]))).toBe("outsideShare");
-  expect(projectPlacement(project, new Map())).toBe("outsideShare");
+  expect(
+    projectPlacement(
+      project,
+      mounts([
+        ["kali-1", voit],
+        ["kali-2", voit],
+      ]),
+    ),
+  ).toBe("ok");
+  expect(
+    projectPlacement(
+      project,
+      mounts([["kali-1", [{ source: "/racine/projets-voisin", target: "/x" }]]]),
+    ),
+  ).toBe("noVisibleContainer");
+  expect(projectPlacement(project, mounts([["kali-1", []]]))).toBe("noVisibleContainer");
+  expect(projectPlacement(project, new Map())).toBe("noVisibleContainer");
+});
+
+it("prepareCommonRoot : projets, conteneurs, ressources, idempotent, sans rien écraser", async () => {
+  const root = await fixtureDir();
+  const dirs = await prepareCommonRoot(root);
+  expect(dirs).toEqual({
+    root,
+    projects: join(root, "projets"),
+    containers: join(root, "conteneurs"),
+    resources: join(root, "ressources"),
+  });
+  expect((await readdir(root)).sort()).toEqual(["conteneurs", "projets", "ressources"]);
+  if (process.platform !== "win32") expect((await stat(dirs.projects)).mode & 0o777).toBe(0o700);
+  await writeFile(join(dirs.projects, "garde.txt"), "intact");
+  expect(await prepareCommonRoot(root)).toEqual(dirs);
+  expect(await readFile(join(dirs.projects, "garde.txt"), "utf8")).toBe("intact");
+});
+
+it("prepareCommonRoot : lien symbolique, racine invalide ou fichier refusés", async () => {
+  const root = await fixtureDir();
+  const other = await fixtureDir();
+  await symlink(other, join(root, "projets"), SYMLINK_TYPE);
+  await expect(prepareCommonRoot(root)).rejects.toMatchObject({ code: "path.outside" });
+  expect(await readdir(other)).toEqual([]);
+  for (const bad of ["relatif", join(root, "absent"), ""])
+    await expect(prepareCommonRoot(bad)).rejects.toMatchObject({ code: "project.parentInvalid" });
 });

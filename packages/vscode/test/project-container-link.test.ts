@@ -44,12 +44,11 @@ it("la carte et le cockpit partagent le même parcours vérifié, avant et aprè
     id: randomUUID(),
     name: "Démo",
     workspace: "/projet",
-    containers: [],
   };
   const read = async () => ({ activeId: project.id, projects: [project] });
   const prepare = vi.fn(async () => undefined);
   const link = vi.fn(async () => {
-    project.containers = [...project.containers, "kali-1"];
+    project.primary = "kali-1";
     return "lié";
   });
   expect(
@@ -71,7 +70,6 @@ it("refuse un montage divergent avant de modifier l’allowlist", async () => {
       id: randomUUID(),
       name: "Démo",
       workspace: join(root, "projet"),
-      containers: [],
     };
     const { mkdir } = await import("node:fs/promises");
     await mkdir(project.workspace);
@@ -108,7 +106,6 @@ it("refuse une liaison si le projet change pendant la préparation", async () =>
     id: randomUUID(),
     name: "Démo",
     workspace: "/projet",
-    containers: [],
   };
   let activeId = project.id;
   const link = vi.fn(async () => undefined);
@@ -130,7 +127,6 @@ it("vérifie l’identité de la proposition avant toute préparation", async ()
     id: randomUUID(),
     name: "Démo",
     workspace: "/projet",
-    containers: [],
   };
   const prepare = vi.fn(async () => undefined);
   const link = vi.fn(async () => undefined);
@@ -164,7 +160,6 @@ it("un changement de dossier sous le même id annule la liaison avant l’allowl
     id: randomUUID(),
     name: "Démo",
     workspace: "/projet",
-    containers: [],
   };
   let current = project;
   const link = vi.fn(async () => undefined);

@@ -39,7 +39,7 @@ it("crée et active le projet sans dialogue dans la racine machine", async () =>
     container: "kali-1",
     share: root,
   });
-  expect(project.workspace).toBe(join(root, "RedWidow", "projects", "mission-demo"));
+  expect(project.workspace).toBe(join(root, "projets", "mission-demo"));
   expect((await readProjectChoices(config)).activeId).toBe(project.id);
   expect(await readFile(join(config, USER_PROJECT_FILE), "utf8")).toContain(project.id);
 });
@@ -226,8 +226,7 @@ it("création : le partage relu par l'hôte donne <partage>/RedWidow/projects/<s
   });
   if (!plan) throw Error("plan absent");
   const project = await applyProjectPlan(config, plan);
-  expect(project.workspace).toBe(join(mount, "RedWidow", "projects", "dans-conteneur"));
-  expect(project.containers).toEqual(["exegol-a"]);
+  expect(project.workspace).toBe(join(mount, "projets", "dans-conteneur"));
   expect(project.primary).toBe("exegol-a");
   expect((await readProjectChoices(config)).activeId).toBe(project.id);
   expect(known.calls).toEqual([]);
@@ -255,7 +254,7 @@ it("dossier existant : le sélecteur s'ouvre sur le partage, le nom est proposé
   expect(plan).toEqual({ kind: "adopt", name: "Client", folder, container: "kali-1", share });
   if (!plan) throw Error("plan absent");
   const project = await applyProjectPlan(config, plan);
-  expect(project.containers).toEqual(["kali-1"]);
+  expect(project.primary).toBe("kali-1");
   expect((await readProjectChoices(config)).activeId).toBe(project.id);
 });
 
@@ -310,20 +309,23 @@ it("dossier existant (plan direct) : déjà projet ou hors partage refusé par l
   ).rejects.toMatchObject({ code: "project.outsideShare" });
 });
 
-it("projets non associés : sans conteneur ou hors du partage ; docker indisponible = seulement « sans conteneur »", () => {
+it("projets non associés : aucun conteneur ne voit le dossier ; docker indisponible = rien d'affirmé", () => {
   const projects = [
-    { id: "a", workspace: "/srv/a/RedWidow/projects/a", containers: ["kali-1"] },
-    { id: "b", workspace: "/ailleurs/b", containers: ["kali-1"] },
-    { id: "c", workspace: "/srv/a/RedWidow/projects/c", containers: [] },
-    { id: "d", workspace: "/srv/a/x", containers: ["disparu"] },
+    { id: "a", workspace: "/srv/a/RedWidow/projects/a" },
+    { id: "b", workspace: "/ailleurs/b" },
+    { id: "c", workspace: "/srv/racine/projets/c" },
   ];
-  expect(unassociatedProjectIds(projects, [{ name: "kali-1", workspace: "/srv/a" }])).toEqual([
-    "b",
-    "c",
-    "d",
-  ]);
-  expect(unassociatedProjectIds(projects, [{ name: "kali-1" }])).toEqual(["a", "b", "c", "d"]);
-  expect(unassociatedProjectIds(projects, undefined)).toEqual(["c"]);
+  const rows = [
+    { name: "kali-1", workspace: "/srv/a" },
+    {
+      name: "kali-2",
+      mounts: [{ source: "/srv/racine/projets", target: "/workspace/projets" }],
+    },
+  ];
+  expect(unassociatedProjectIds(projects, rows)).toEqual(["b"]);
+  expect(unassociatedProjectIds(projects, [rows[0] as (typeof rows)[0]])).toEqual(["b", "c"]);
+  expect(unassociatedProjectIds(projects, [{ name: "kali-1" }])).toEqual(["a", "b", "c"]);
+  expect(unassociatedProjectIds(projects, undefined)).toEqual([]);
 });
 
 it("proposedProjectName borne le nom de base du dossier", () => {

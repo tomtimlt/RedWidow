@@ -198,6 +198,40 @@ describe("format et famille de listLabelPrefix", () => {
     leakFree(JSON.stringify(rows));
   });
 
+  it("relit les montages bind (source, cible, lecture seule) ; format : bind seulement, sans label", () => {
+    const rows = parseDockerLabelPrefixInspect([
+      row({
+        state: "running",
+        name: "k",
+        image: "kali",
+        mounts: [
+          { source: "/racine/conteneurs/k", target: "/workspace", readonly: false },
+          { source: "/racine/ressources", target: "/workspace/ressources", readonly: true },
+        ],
+      }),
+      row({ state: "running", name: "k2", image: "kali", mounts: [] }),
+    ]);
+    expect(rows[0]?.mounts).toEqual([
+      { source: "/racine/conteneurs/k", target: "/workspace", readonly: false },
+      { source: "/racine/ressources", target: "/workspace/ressources", readonly: true },
+    ]);
+    expect(rows[1]?.mounts).toEqual([]);
+    expect(fmt).toContain('"mounts":[');
+    expect(fmt).toContain('eq .Type "bind"');
+    for (const bad of [
+      "x",
+      [1],
+      [{ source: "", target: "/w", readonly: false }],
+      [{ source: "/s", target: 1, readonly: false }],
+      [{ source: "/s", target: "/w", readonly: "non" }],
+    ])
+      expect(() =>
+        parseDockerLabelPrefixInspect([
+          row({ state: "running", name: "k", image: "kali", mounts: bad }),
+        ]),
+      ).toThrow();
+  });
+
   it("classe runtimeKali sur debian en kali", () => {
     expect(
       parseDockerLabelPrefixInspect([

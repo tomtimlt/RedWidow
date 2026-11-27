@@ -18,6 +18,7 @@ import {
   lookupContainer,
   type ProgramState,
   type ProjectFile,
+  projectContainerNames,
   readCampaignSync,
   readEngagementSync,
   readProgramSync,
@@ -562,7 +563,7 @@ export async function loadCockpitView(deps: CockpitDeps = {}): Promise<CockpitVi
 
   const sorted = sortContainers(rows);
   const active = stored === null ? null : activeProject(stored);
-  const allowed = active?.containers ?? [];
+  const allowed = active === null ? [] : projectContainerNames(active);
   const unique = allowed.length === 1 ? allowed[0] : undefined;
   // Conteneur affiché : `primary` s'il est posé, sinon l'unique conteneur lié.
   const displayed = active?.primary ?? unique;
@@ -813,8 +814,7 @@ export async function linkedProjectStatus(
   }
   const active = stored === null ? null : activeProject(stored);
   if (active === null) return null;
-  const container =
-    active.primary ?? (active.containers.length === 1 ? active.containers[0] : undefined);
+  const container = active.primary;
   if (container === undefined) {
     return { workspace: active.workspace, container: null, image: null, state: null };
   }

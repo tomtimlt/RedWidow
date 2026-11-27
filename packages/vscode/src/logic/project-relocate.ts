@@ -3,7 +3,6 @@ import {
   associateContainer,
   CodedError,
   defaultConfigDir,
-  dissociateContainer,
   type LabelPrefixContainer,
   moveProjectWorkspace,
   prepareRedwidowRoot,
@@ -33,7 +32,6 @@ export interface RelocateProjectDeps {
   move?: typeof moveProjectWorkspace;
   associate?: typeof associateContainer;
   setPrimary?: typeof setPrimaryContainer;
-  dissociate?: typeof dissociateContainer;
 }
 
 /**
@@ -82,12 +80,5 @@ export async function relocateProject(
     listLabelPrefix: async () => rows as LabelPrefixContainer[],
   });
   await (deps.setPrimary ?? setPrimaryContainer)(configDir, project.id, target.name);
-  for (const name of project.containers) {
-    if (name === target.name) continue;
-    const row = rows.find((candidate) => candidate.name === name);
-    if (row === undefined || row.workspace === undefined || !isAbsolute(row.workspace)) continue;
-    if (!(await projectInSharedFolder(row.workspace, workspace)))
-      await (deps.dissociate ?? dissociateContainer)(configDir, project.id, name);
-  }
   return { workspace };
 }

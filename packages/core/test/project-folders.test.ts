@@ -28,7 +28,6 @@ const fixture = async () => {
 afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
-const target = (share: string) => ({ container: "kali-1", share });
 const refused = (code: string) => expect.objectContaining({ code });
 
 it("adoption : crée seulement les sous-dossiers manquants sans rien écraser", async () => {
@@ -37,9 +36,10 @@ it("adoption : crée seulement les sous-dossiers manquants sans rien écraser", 
   await mkdir(join(folder, "notes"), { recursive: true });
   await writeFile(join(folder, "notes", "garde.txt"), "intact");
   await writeFile(join(folder, "autre.txt"), "intact");
-  const project = await adoptProjectDirectory(config, "Repris", folder, target(a));
+  const project = await adoptProjectDirectory(config, "Repris", folder, "kali-1");
   expect(project.workspace).toBe(folder);
-  expect(project).toMatchObject({ containers: ["kali-1"], primary: "kali-1" });
+  expect(project).toMatchObject({ primary: "kali-1" });
+  expect(project).not.toHaveProperty("containers");
   expect((await readdir(folder)).sort()).toEqual(
     [...PROJECT_WORKSPACE_FOLDERS, "autre.txt"].sort(),
   );
@@ -54,11 +54,11 @@ it("adoption : dossier absent, relatif, lien symbolique ou déjà enregistré re
   const link = join(base, "lien");
   await symlink(folder, link, process.platform === "win32" ? "junction" : "dir");
   for (const bad of [join(a, "absent"), "relatif", link])
-    await expect(adoptProjectDirectory(config, "X", bad, target(a))).rejects.toMatchObject({
+    await expect(adoptProjectDirectory(config, "X", bad)).rejects.toMatchObject({
       code: "project.parentInvalid",
     });
-  await adoptProjectDirectory(config, "Premier", folder, target(a));
-  await expect(adoptProjectDirectory(config, "Second", folder, target(a))).rejects.toEqual(
+  await adoptProjectDirectory(config, "Premier", folder);
+  await expect(adoptProjectDirectory(config, "Second", folder)).rejects.toEqual(
     refused("project.folderAlreadyProject"),
   );
   expect((await readProjects(config))?.projects).toHaveLength(1);
@@ -67,33 +67,25 @@ it("adoption : dossier absent, relatif, lien symbolique ou déjà enregistré re
 it("adoption : refuse un dossier sensible", async () => {
   if (process.platform === "win32") return;
   const { config, a } = await fixture();
-  await expect(adoptProjectDirectory(config, "X", "/etc", target(a))).rejects.toMatchObject({
+  await expect(adoptProjectDirectory(config, "X", "/etc")).rejects.toMatchObject({
     code: "project.parentInvalid",
   });
 });
 
-it("adoption : dossier hors du partage refusé, sans conteneur refusé, rien n'est créé", async () => {
+it("adoption : aucun conteneur ni partage requis, primary invalide refusé sans rien créer", async () => {
   const { config, a, b } = await fixture();
   const dehors = join(b, "dehors");
   await mkdir(dehors);
-  await expect(adoptProjectDirectory(config, "X", dehors, target(a))).rejects.toEqual(
-    refused("project.outsideShare"),
-  );
-  // Un dossier voisin au préfixe commun n'est pas « dans » le partage.
-  const voisin = join(a, "..", `${basename(a)}-voisin`);
-  await mkdir(voisin);
-  await expect(adoptProjectDirectory(config, "X", voisin, target(a))).rejects.toEqual(
-    refused("project.outsideShare"),
-  );
+  const adopted = await adoptProjectDirectory(config, "X", dehors);
+  expect(adopted).not.toHaveProperty("primary");
+  expect((await readdir(dehors)).sort()).toEqual([...PROJECT_WORKSPACE_FOLDERS].sort());
   const dedans = join(a, "dedans");
   await mkdir(dedans);
-  await expect(
-    adoptProjectDirectory(config, "X", dedans, { container: "", share: a }),
-  ).rejects.toEqual(refused("project.containerRequired"));
-  expect(await readdir(dehors)).toEqual([]);
+  await expect(adoptProjectDirectory(config, "Y", dedans, "a\0b")).rejects.toEqual(
+    refused("project.invalid"),
+  );
   expect(await readdir(dedans)).toEqual([]);
-  expect(await readProjects(config)).toBeNull();
-  await rm(voisin, { recursive: true });
+  expect((await readProjects(config))?.projects).toHaveLength(1);
 });
 
 it("adoption : un lien symbolique du dossier est refusé même si sa cible est dans le partage", async () => {
@@ -102,14 +94,14 @@ it("adoption : un lien symbolique du dossier est refusé même si sa cible est d
   await mkdir(reel);
   const lien = join(base, "lien");
   await symlink(reel, lien, process.platform === "win32" ? "junction" : "dir");
-  await expect(adoptProjectDirectory(config, "X", lien, target(a))).rejects.toEqual(
+  await expect(adoptProjectDirectory(config, "X", lien)).rejects.toEqual(
     refused("project.parentInvalid"),
   );
 });
 
 it("déplacement sur le même volume : rename, registre mis à jour, conteneurs conservés", async () => {
   const { config, a, b } = await fixture();
-  const created = await createManagedProject(config, "Mon projet", target(a));
+  const created = await createManagedProject(config, "Mon projet", a);
   await writeFile(join(created.workspace, "notes", "n.txt"), "contenu");
   const file = await readProjects(config);
   expect(file).not.toBeNull();
@@ -123,7 +115,7 @@ it("déplacement sur le même volume : rename, registre mis à jour, conteneurs 
 
 it("déplacement : destination existante, parent invalide, destination dans la source, id inconnu", async () => {
   const { config, a, b } = await fixture();
-  const created = await createManagedProject(config, "Projet", target(a));
+  const created = await createManagedProject(config, "Projet", a);
   await mkdir(join(b, basename(created.workspace)));
   await expect(moveProjectWorkspace(config, created.id, b)).rejects.toEqual(
     refused("project.destinationExists"),
@@ -150,7 +142,7 @@ const exdev = async () => {
 
 it("déplacement inter-volumes simulé : copie, vérification, suppression de la source", async () => {
   const { config, a, b } = await fixture();
-  const created = await createManagedProject(config, "Projet", target(a));
+  const created = await createManagedProject(config, "Projet", a);
   await writeFile(join(created.workspace, "scans", "s.txt"), "scan");
   const moved = await moveProjectWorkspace(config, created.id, b, { rename: exdev });
   expect(await readFile(join(moved.workspace, "scans", "s.txt"), "utf8")).toBe("scan");
@@ -162,7 +154,7 @@ it("déplacement inter-volumes simulé : copie, vérification, suppression de la
 it("copie inter-volumes : un lien symbolique est refusé, la copie partielle disparaît, la source reste", async () => {
   if (process.platform === "win32") return;
   const { config, a, b } = await fixture();
-  const created = await createManagedProject(config, "Projet", target(a));
+  const created = await createManagedProject(config, "Projet", a);
   await writeFile(join(created.workspace, "notes", "n.txt"), "x");
   await symlink("/etc/hostname", join(created.workspace, "scripts", "lien"));
   await expect(moveProjectWorkspace(config, created.id, b, { rename: exdev })).rejects.toEqual(
@@ -196,16 +188,14 @@ it("import : id conservé s'il est libre, remplacé s'il est pris ou invalide", 
     id,
     name: "Importé",
     workspace: one,
-    container: "kali-1",
-    share: a,
+    primary: "kali-1",
   });
-  expect(first).toMatchObject({ idChanged: false, project: { id, containers: ["kali-1"] } });
+  expect(first).toMatchObject({ idChanged: false, project: { id, primary: "kali-1" } });
   const second = await registerImportedProject(config, {
     id,
     name: "Importé",
     workspace: two,
-    container: "kali-1",
-    share: a,
+    primary: "kali-1",
   });
   expect(second.idChanged).toBe(true);
   expect(second.project.id).not.toBe(id);
@@ -213,8 +203,7 @@ it("import : id conservé s'il est libre, remplacé s'il est pris ou invalide", 
     id: "../evasion",
     name: "Importé",
     workspace: three,
-    container: "kali-1",
-    share: a,
+    primary: "kali-1",
   });
   expect(third.idChanged).toBe(true);
   expect(third.project.id).toMatch(/^[0-9a-f-]{36}$/);
@@ -223,8 +212,7 @@ it("import : id conservé s'il est libre, remplacé s'il est pris ou invalide", 
       id,
       name: "X",
       workspace: one,
-      container: "kali-1",
-      share: a,
+      primary: "kali-1",
     }),
   ).rejects.toEqual(refused("project.folderAlreadyProject"));
   await expect(
@@ -232,32 +220,30 @@ it("import : id conservé s'il est libre, remplacé s'il est pris ou invalide", 
       id,
       name: "X",
       workspace: join(a, "absent"),
-      container: "kali-1",
-      share: a,
+      primary: "kali-1",
     }),
   ).rejects.toEqual(refused("project.parentInvalid"));
   expect((await readProjects(config))?.projects).toHaveLength(3);
 });
 
-it("import : hors du partage ou sans conteneur refusé", async () => {
+it("import : aucun conteneur requis, primary invalide refusé", async () => {
   const { config, a, b } = await fixture();
   const id = "11111111-1111-4111-8111-111111111111";
   await expect(
-    registerImportedProject(config, { id, name: "X", workspace: b, container: "kali-1", share: a }),
-  ).rejects.toEqual(refused("project.outsideShare"));
-  await expect(
-    registerImportedProject(config, { id, name: "X", workspace: a, container: "", share: a }),
-  ).rejects.toEqual(refused("project.containerRequired"));
+    registerImportedProject(config, { id, name: "X", workspace: a, primary: "a\0b" }),
+  ).rejects.toEqual(refused("project.invalid"));
   expect(await readProjects(config)).toBeNull();
+  const { project } = await registerImportedProject(config, { id, name: "X", workspace: b });
+  expect(project).not.toHaveProperty("primary");
 });
 
 it("MAX_PROJECTS : adoption et import refusés au-delà de 32 projets", async () => {
   const { config, a } = await fixture();
   for (let i = 0; i < 32; i++)
-    await createProject(config, { containers: ["kali-1"], name: `p${i}`, workspace: a });
+    await createProject(config, { primary: "kali-1", name: `p${i}`, workspace: a });
   const extra = join(a, "extra");
   await mkdir(extra);
-  await expect(adoptProjectDirectory(config, "X", extra, target(a))).rejects.toMatchObject({
+  await expect(adoptProjectDirectory(config, "X", extra)).rejects.toMatchObject({
     code: "project.invalid",
   });
   await expect(
@@ -265,8 +251,7 @@ it("MAX_PROJECTS : adoption et import refusés au-delà de 32 projets", async ()
       id: "11111111-1111-4111-8111-111111111111",
       name: "X",
       workspace: extra,
-      container: "kali-1",
-      share: a,
+      primary: "kali-1",
     }),
   ).rejects.toMatchObject({ code: "project.invalid" });
   expect(await readdir(extra)).toEqual([]);

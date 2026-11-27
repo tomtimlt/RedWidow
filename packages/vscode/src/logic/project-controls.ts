@@ -2,12 +2,14 @@ import { basename, isAbsolute } from "node:path";
 import {
   adoptProjectDirectory,
   CodedError,
+  type ContainerMount,
   createManagedProject,
   isInsideShare,
   projectPlacement,
   readProjects,
   removeProject,
   renameProject,
+  rowMounts,
   type StoredProject,
   setActiveProject,
 } from "@warband/core";
@@ -38,7 +40,7 @@ export async function createManagedSelectedProject(
   name: string,
   target: { container: string; share: string },
 ) {
-  const project = await createManagedProject(configDir, name, target);
+  const project = await createManagedProject(configDir, name, target.share, target.container);
   await activateSelectedProject(configDir, project.id);
   return project;
 }
@@ -93,25 +95,22 @@ export async function planProjectCreation(
 }
 
 /**
- * Projets « non associés » (ADR 0053, point 8) : sans conteneur, ou hors du partage de leurs
- * conteneurs. `containers` : liste Docker relue par l'hôte, `undefined` si indisponible ; seul
- * « sans conteneur » est alors affirmé (rien n'est supposé sur les montages).
+ * Projets « non associés » (ADR 0054, point 8) : aucun conteneur ne voit leur dossier.
+ * `containers` : liste Docker relue par l'hôte, `undefined` si indisponible (rien n'est affirmé).
  */
 export function unassociatedProjectIds(
-  projects: readonly Pick<StoredProject, "id" | "workspace" | "containers">[],
-  containers: readonly { name: string; workspace?: string }[] | undefined,
+  projects: readonly Pick<StoredProject, "id" | "workspace">[],
+  containers:
+    | readonly { name: string; workspace?: string; mounts?: readonly ContainerMount[] }[]
+    | undefined,
 ): string[] {
-  const mounts = new Map<string, string | undefined>(
-    (containers ?? []).map(({ name, workspace }) => [
-      name,
-      workspace !== undefined && isAbsolute(workspace) ? workspace : undefined,
-    ]),
+  if (containers === undefined) return [];
+  const mounts = new Map<string, readonly ContainerMount[]>(
+    containers.map((row) => [row.name, rowMounts(row)]),
   );
-  return projects.flatMap((project) => {
-    if (project.containers.length === 0) return [project.id];
-    if (containers === undefined) return [];
-    return projectPlacement(project, mounts) === "ok" ? [] : [project.id];
-  });
+  return projects.flatMap((project) =>
+    projectPlacement(project, mounts) === "ok" ? [] : [project.id],
+  );
 }
 
 /** Crée ou reprend le dossier, puis active le projet. Les contrôles de chemin restent ceux du cœur. */
@@ -121,10 +120,9 @@ export async function applyProjectPlan(configDir: string, plan: ProjectCreationP
       container: plan.container,
       share: plan.share,
     });
-  const project = await adoptProjectDirectory(configDir, plan.name, plan.folder, {
-    container: plan.container,
-    share: plan.share,
-  });
+  // Garde de l'interface (le cœur n'exige plus de partage, ADR 0054) : le conteneur choisi doit voir le dossier.
+  if (!(await isInsideShare(plan.share, plan.folder))) throw new CodedError("project.outsideShare");
+  const project = await adoptProjectDirectory(configDir, plan.name, plan.folder, plan.container);
   await activateSelectedProject(configDir, project.id);
   return project;
 }

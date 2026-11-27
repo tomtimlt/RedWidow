@@ -148,11 +148,20 @@ export interface ContainerInspectSummary {
   mounts: ContainerInspectMount[];
 }
 
+/** Montage bind d'un conteneur : dossier hôte, cible dans le conteneur, lecture seule ou non. */
+export interface LabelPrefixMount {
+  source: string;
+  target: string;
+  readonly: boolean;
+}
+
 export interface LabelPrefixContainer {
   state: "running" | "stopped";
   name: string;
   image: string;
   workspace?: string;
+  /** Montages de type bind relus par inspect (absent si la ligne n'en porte pas). */
+  mounts?: LabelPrefixMount[];
   /** Famille calculée par le parseur. Jamais lue depuis la ligne. */
   family: "exegol" | "kali";
 }
@@ -172,6 +181,10 @@ export const DOCKER_LABEL_PREFIX_INSPECT_FORMAT = [
   '{"state":"{{if eq .State.Status "running"}}running{{else}}stopped{{end}}"',
   ',"name":{{json .Name}},"image":{{json .Config.Image}}',
   '{{if ne $ws ""}},"workspace":{{json $ws}}{{end}}',
+  ',"mounts":[{{$first := true}}{{range .Mounts}}{{if and (eq .Type "bind") (ne .Source "")}}',
+  "{{if $first}}{{$first = false}}{{else}},{{end}}",
+  '{"source":{{json .Source}},"target":{{json .Destination}},"readonly":{{if .RW}}false{{else}}true{{end}}}',
+  "{{end}}{{end}}]",
   '{{if $exegol}},"exegol":true{{end}}{{if $runtime}},"runtimeKali":true{{end}}}{{println}}{{end}}',
 ].join("");
 
@@ -180,13 +193,14 @@ const LABEL_PREFIX_ALLOWED_KEYS = new Set([
   "name",
   "image",
   "workspace",
+  "mounts",
   "exegol",
   "runtimeKali",
 ]);
 
 /**
  * Parse la sortie de `docker inspect --format` de `listLabelPrefix` (un objet JSON par ligne).
- * Clés admises : `state`, `name`, `image`, `workspace`, `exegol`, `runtimeKali`.
+ * Clés admises : `state`, `name`, `image`, `workspace`, `mounts`, `exegol`, `runtimeKali`.
  * `exegol` et `runtimeKali` sont absents ou `true`, et ne sont pas recopiés.
  * Famille : `exegol`, sinon `runtimeKali`, sinon image contenant `kali`, sinon ligne ignorée.
  */
@@ -224,6 +238,19 @@ export function parseDockerLabelPrefixInspect(
       if (typeof record.workspace !== "string" || record.workspace === "") throw unexpected();
       workspace = record.workspace;
     }
+    let mounts: LabelPrefixMount[] | undefined;
+    if ("mounts" in record) {
+      if (!Array.isArray(record.mounts)) throw unexpected();
+      mounts = [];
+      for (const entry of record.mounts) {
+        if (!isPlainObject(entry)) throw unexpected();
+        const { source, target, readonly } = entry;
+        if (typeof source !== "string" || source === "") throw unexpected();
+        if (typeof target !== "string" || target === "") throw unexpected();
+        if (typeof readonly !== "boolean") throw unexpected();
+        mounts.push({ source, target, readonly });
+      }
+    }
     if ("exegol" in record && record.exegol !== true) throw unexpected();
     if ("runtimeKali" in record && record.runtimeKali !== true) throw unexpected();
 
@@ -233,8 +260,14 @@ export function parseDockerLabelPrefixInspect(
     else if (image.includes("kali")) family = "kali";
     if (family === undefined) return;
 
-    if (workspace !== undefined) out.push({ state, name, image, workspace, family });
-    else out.push({ state, name, image, family });
+    out.push({
+      state,
+      name,
+      image,
+      ...(workspace !== undefined && { workspace }),
+      ...(mounts !== undefined && { mounts }),
+      family,
+    });
   });
   return out;
 }

@@ -34,6 +34,8 @@ import {
   outputFileSpecs,
   type ProgramStatus,
   prepareContainerProjectWorkspace,
+  projectContainerNames,
+  projectContainerPath,
   projectProgramPath,
   readActiveProjectForPrompt,
   readEngagementSync,
@@ -41,6 +43,7 @@ import {
   readProjects,
   resolveExegolContainer,
   resolveKaliContainer,
+  rowMounts,
   type StoredProject,
   writeProgramDraft,
 } from "@warband/core";
@@ -118,7 +121,7 @@ const done = runEngine({
       const file = await readProjects(defaultConfigDir());
       const active = file === null ? null : activeProject(file);
       activeProjectId = active?.id ?? null;
-      attachedContainers = active?.containers ?? [];
+      attachedContainers = active === null ? [] : projectContainerNames(active);
       if (active !== null && active.workspace !== "" && isAbsolute(active.workspace)) {
         projectRoot = active.workspace;
         return active.workspace;
@@ -134,12 +137,20 @@ const done = runEngine({
     // d’exception relancée pour la lecture du projet. Un partage invalide est en revanche
     // bloquant : aucune action ne doit partir vers un autre dossier de mission.
     let selected: StoredProject | null = null;
-    const outcome = await readActiveProjectForPrompt(async () => {
-      const file = await readProjects(defaultConfigDir());
-      selected = file && activeProject(file);
-      activeProjectId = (selected as StoredProject | null)?.id ?? null;
-      return file;
-    }, activeProject);
+    const outcome = await readActiveProjectForPrompt(
+      async () => {
+        const file = await readProjects(defaultConfigDir());
+        selected = file && activeProject(file);
+        activeProjectId = (selected as StoredProject | null)?.id ?? null;
+        return file;
+      },
+      (file) => {
+        const project = activeProject(file);
+        return project === null
+          ? null
+          : { id: project.id, containers: projectContainerNames(project) };
+      },
+    );
     attachedContainers = outcome.containers;
     targets.note(text, outcome.containers, outcome.projectId, outcome.blocked);
     if (learningMode) return text;
@@ -154,8 +165,11 @@ const done = runEngine({
       const project = selected as StoredProject;
       if ((await realpath(project.workspace)) !== (await realpath(projectRoot)))
         throw new CodedError("project.invalid");
+      const realWorkspace = await realpath(project.workspace);
+      // Visibilité (ADR 0054) : un conteneur démarré dont un montage contient le projet.
       for (const row of rows.filter(
-        (r) => project.containers.includes(r.name) && r.state === "running",
+        (r) =>
+          r.state === "running" && projectContainerPath(realWorkspace, rowMounts(r)) !== undefined,
       )) {
         let chosen: string;
         try {

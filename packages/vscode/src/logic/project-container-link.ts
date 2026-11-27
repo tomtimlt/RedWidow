@@ -50,7 +50,7 @@ export async function linkWithProjectWorkspace<T>(
   const before = file && activeProject(file);
   if (!before || (deps.expectedProjectId !== undefined && before.id !== deps.expectedProjectId))
     throw new CodedError("project.absent");
-  await deps.prepare({ ...before, containers: [...new Set([...before.containers, name])] }, name);
+  await deps.prepare(before, name);
   await deps.prepareRuntime(name);
   const freshFile = await deps.read();
   const fresh = freshFile && activeProject(freshFile);

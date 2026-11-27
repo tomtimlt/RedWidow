@@ -429,6 +429,8 @@ export const reasons: Catalog = {
     "un projet n’existe que dans un conteneur : choisissez d’abord un conteneur",
   "project.outsideShare": () =>
     "ce dossier n’est pas dans le dossier partagé du conteneur : le conteneur ne verrait pas le projet",
+  "project.noVisibleContainer": (p) =>
+    `aucun conteneur démarré ne voit le projet ${text(p.project)} : démarrez ou créez un conteneur dont les montages contiennent son dossier`,
   "container.rootInvalid": () =>
     "racine des conteneurs refusée : elle doit être absolue, exister, ne pas passer par un lien symbolique ni exposer un chemin sensible",
   "project.folderAlreadyProject": (p) => `ce dossier est déjà le projet ${text(p.name)}`,

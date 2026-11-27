@@ -97,6 +97,40 @@ export async function prepareRedwidowRoot(share: string): Promise<string> {
   return root;
 }
 
+/** Sous-dossiers de la racine commune (ADR 0054, point 1). */
+export const COMMON_ROOT_DIRS = ["projets", "conteneurs", "ressources"] as const;
+
+export interface CommonRoot {
+  root: string;
+  projects: string;
+  containers: string;
+  resources: string;
+}
+
+/**
+ * Crée `<racine>/{projets,conteneurs,ressources}` sans rien écraser (idempotent, 0o700). La racine
+ * doit exister et passer `validateProjectFolder` ; un lien symbolique rencontré est refusé.
+ */
+export async function prepareCommonRoot(root: string): Promise<CommonRoot> {
+  const base = await validateProjectFolder(root);
+  const [projects, containers, resources] = COMMON_ROOT_DIRS.map((d) => join(base, d)) as [
+    string,
+    string,
+    string,
+  ];
+  for (const path of [projects, containers, resources]) {
+    try {
+      await mkdir(path, { mode: 0o700 });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    }
+    const info = await lstat(path);
+    if (!info.isDirectory() || info.isSymbolicLink())
+      throw new CodedError("path.outside", { path });
+  }
+  return { root: base, projects, containers, resources };
+}
+
 /** Vrai si `folder` est le partage ou s’y trouve (chemins réels ; faux si l’un des deux est absent). */
 export async function isInsideShare(share: string, folder: string): Promise<boolean> {
   try {
@@ -301,34 +335,79 @@ else
   ln -s "$2" "$1" || test "$(readlink -f "$1")" = "$(readlink -f "$2")"
 fi`;
 
+/** Montage bind d'un conteneur, tel que relu par inspect. */
+export interface ContainerMount {
+  source: string;
+  target: string;
+}
+
+/**
+ * Chemin du projet vu depuis le conteneur (ADR 0054, point 3), ou `undefined` s'il n'est sous
+ * aucun montage. Fonction pure : `workspace` et les sources sont comparés lexicalement (après
+ * adaptation des chemins Docker Desktop), la source la plus spécifique l'emporte.
+ */
+export function projectContainerPath(
+  workspace: string,
+  mounts: readonly ContainerMount[],
+  platform: NodeJS.Platform = process.platform,
+): string | undefined {
+  const flavor = platform === "win32" ? win32 : posix;
+  let best: { length: number; path: string } | undefined;
+  for (const mount of mounts) {
+    const source = dockerHostWorkspace(mount.source, platform);
+    if (!isInside(source, workspace, platform)) continue;
+    const length = flavor.resolve(source).length;
+    if (best !== undefined && best.length >= length) continue;
+    const rel = flavor.relative(source, workspace).split(flavor.sep).filter(Boolean);
+    best = { length, path: posix.join(mount.target, ...rel) };
+  }
+  return best?.path;
+}
+
+/** Montages d'une ligne Docker ; repli sur l'ancien montage unique `/workspace`. */
+export function rowMounts(row: {
+  workspace?: string;
+  mounts?: readonly ContainerMount[];
+}): readonly ContainerMount[] {
+  if (row.mounts !== undefined) return row.mounts;
+  return row.workspace === undefined ? [] : [{ source: row.workspace, target: "/workspace" }];
+}
+
 /** Prouve le partage hôte/conteneur avant de créer l’alias. Ne recrée jamais un conteneur. */
 export async function prepareContainerProjectWorkspace(
   project: StoredProject,
   container: string,
   docker: Pick<DockerClient, "listLabelPrefix" | "execWorkspace">,
 ): Promise<string> {
-  if (!project.containers.includes(container))
-    throw new CodedError("project.notFound", { name: container });
   const row = (await docker.listLabelPrefix()).find((r) => r.name === container);
   if (!row || row.state !== "running")
     throw new CodedError("project.notRunning", { name: container });
-  if (!row.workspace) throw new CodedError("project.noWorkspace", { name: container });
-  const root = await realpath(project.workspace);
+  const mounts = rowMounts(row);
+  if (mounts.length === 0) throw new CodedError("project.noWorkspace", { name: container });
   const notMounted = () =>
     new CodedError("project.workspaceNotMounted", {
       container,
-      mounted: row.workspace ?? "",
+      mounted: row.workspace ?? mounts.map((m) => m.source).join(", "),
       project: `${project.name} (${project.workspace})`,
     });
-  let mounted: string;
+  let root: string;
   try {
-    mounted = await realpath(dockerHostWorkspace(row.workspace));
+    root = await realpath(project.workspace);
   } catch {
     throw notMounted();
   }
-  const rel = relative(mounted, root);
-  if (isAbsolute(rel) || rel === ".." || rel.startsWith(`..${sep}`)) throw notMounted();
-  const containerRoot = posix.join("/workspace", ...rel.split(sep).filter(Boolean));
+  // Sources en chemins réels : un lien ou un montage disparu est écarté (le projet n'y est pas vu).
+  const real: ContainerMount[] = [];
+  for (const mount of mounts) {
+    try {
+      real.push({
+        source: await realpath(dockerHostWorkspace(mount.source)),
+        target: mount.target,
+      });
+    } catch {}
+  }
+  const containerRoot = projectContainerPath(root, real);
+  if (containerRoot === undefined) throw notMounted();
   await prepareProjectWorkspace(root);
   const marker = `.redwidow-share-${randomUUID()}`;
   const proof = randomUUID();

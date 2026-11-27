@@ -222,6 +222,7 @@ export const REASON_CODES = [
   "project.parentInvalid",
   "project.containerRequired",
   "project.outsideShare",
+  "project.noVisibleContainer",
   "container.rootInvalid",
   "project.folderAlreadyProject",
   "project.destinationExists",

@@ -88,7 +88,7 @@ export async function removeListedContainer(
       family: row.family,
       state: row.state,
       force,
-      projects: file?.projects.filter((project) => project.containers.includes(name)) ?? [],
+      projects: file?.projects.filter((project) => project.primary === name) ?? [],
     }))
   )
     return { status: "cancelled", name };

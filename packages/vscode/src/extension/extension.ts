@@ -31,6 +31,7 @@ import {
   parseMentions,
   prepareContainerProjectWorkspace,
   prepareKaliContainer,
+  projectContainerNames,
   promptForTargets,
   pullDockerImage,
   readFindings,
@@ -1023,7 +1024,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const projectFile = await readProjects(defaultConfigDir());
       const auditProject = projectFile === null ? null : activeProject(projectFile);
       const workdir = await prepareEditorShellWorkspace(
-        auditProject?.containers.includes(plan.name)
+        auditProject !== null && projectContainerNames(auditProject).includes(plan.name)
           ? () => prepareContainerProjectWorkspace(auditProject, plan.name, shellDocker())
           : null,
         (error) =>
@@ -1040,7 +1041,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         undefined,
         workdir,
       );
-      const projectId = auditProject?.containers.includes(plan.name) ? auditProject.id : null;
+      const projectId =
+        auditProject !== null && projectContainerNames(auditProject).includes(plan.name)
+          ? auditProject.id
+          : null;
       const term = vscode.window.createTerminal({
         name: plan.title,
         shellPath,
@@ -1347,7 +1351,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               const rows = await shellDocker()
                 .listLabelPrefix()
                 .catch(() => []);
-              const names = unlinkedContainerMentions(message.text, rows, project.containers);
+              const names = unlinkedContainerMentions(
+                message.text,
+                rows,
+                projectContainerNames(project),
+              );
               proposedLinks.set(id, { projectId: project.id, names: new Set(names) });
               reply({
                 type: "containerLinks",
@@ -3766,7 +3774,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const fresh = await current();
         if (
           capturedContainer !== undefined &&
-          !evidenceTerminalAllowed(fresh.containers, capturedContainer)
+          !evidenceTerminalAllowed(projectContainerNames(fresh), capturedContainer)
         )
           throw new Error(t("Le terminal n’appartient plus à l’allowlist du projet actif."));
       };
@@ -3778,7 +3786,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           .filter(
             (shell) =>
               shell.logPath !== null &&
-              evidenceTerminalAllowed(project.containers, shell.container),
+              evidenceTerminalAllowed(projectContainerNames(project), shell.container),
           );
         if (!shells.length)
           throw new Error(t("Aucun terminal capturé n’appartient à l’allowlist du projet actif."));
@@ -5055,12 +5063,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const choices = await readProjectChoices(defaultConfigDir());
         const current = choices.projects.find((p) => p.id === choices.activeId);
         const rows = await shellDocker().listLabelPrefix();
-        const linked =
-          (await readProjects(defaultConfigDir()))?.projects.find((p) => p.id === current?.id)
-            ?.containers ?? [];
         const stored = (await readProjects(defaultConfigDir()))?.projects.find(
           (p) => p.id === current?.id,
         );
+        const linked = stored === undefined ? [] : projectContainerNames(stored);
         const mappings: string[] = [];
         if (stored)
           for (const row of rows.filter((r) => linked.includes(r.name) && r.state === "running")) {

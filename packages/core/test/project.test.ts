@@ -16,6 +16,7 @@ import {
   readProjects,
   readSummary,
   removeProject,
+  renameProject,
   setActiveProject,
   setChmodProjectFileForTests,
   setPrimaryContainer,
@@ -71,7 +72,7 @@ describe("link", () => {
       expect(active).toMatchObject({
         name: "with-ws",
         workspace: "/host/ws",
-        containers: ["with-ws"],
+        primary: "with-ws",
       });
       expect(file?.activeId).toBe(active?.id);
       expect(chmodCalls.some((c) => c.path === projectPath && c.mode === 0o600)).toBe(true);
@@ -152,7 +153,7 @@ describe("link", () => {
     expect(activeProject(file)).toMatchObject({
       name: "kali-box",
       workspace: "/host/kali",
-      containers: ["kali-box"],
+      primary: "kali-box",
     });
   });
 
@@ -225,7 +226,7 @@ describe("link", () => {
     expect(activeProject(file)).toMatchObject({
       name: "a",
       workspace: "/host/a",
-      containers: ["exegol-a", "exegol-b"],
+      primary: "exegol-a",
     });
   });
 });
@@ -251,7 +252,7 @@ describe("readProjects", () => {
     expect(active).toMatchObject({
       name: "htb1",
       workspace: "/host/ws",
-      containers: ["exegol-htb1"],
+      primary: "exegol-htb1",
     });
     expect(first?.activeId).toBe(active?.id);
     const dest = join(configDir, "projects", active?.id ?? "x", USER_FINDINGS_FILE);
@@ -362,7 +363,8 @@ describe("écriture des projets", () => {
     const file = await readProjects(configDir);
     expect(file?.activeId).toBe(a.id);
     expect(file?.projects.map((p) => p.id)).toEqual([a.id, b.id]);
-    expect(b.containers).toEqual(["kali-1"]);
+    expect(b.primary).toBe("kali-1");
+    expect(b).not.toHaveProperty("containers");
   });
 
   it("refuse un nom ou un workspace illégal sans écrire", async () => {
@@ -441,30 +443,26 @@ describe("écriture des projets", () => {
     expect(await readdir(configDir)).toEqual([]);
   });
 
-  it("associateContainer stocke le nom réel, y compris un Kali", async () => {
+  it("associateContainer pose primary avec le nom réel (y compris un Kali), sans écraser un primary existant", async () => {
     const { configDir } = await setup();
-    const project = await createProject(configDir, {
-      containers: ["kali-1"],
-      name: "p",
-      workspace: "/host/p",
-    });
+    const project = await createProject(configDir, { name: "p", workspace: "/host/p" });
     const docker = {
       listLabelPrefix: async () => [row("exegol-htb1", { family: "kali", workspace: "/host/k" })],
     };
     await associateContainer(configDir, project.id, "htb1", docker);
+    expect((await readProjects(configDir))?.projects[0]?.primary).toBe("exegol-htb1");
     const again = await textOf(configDir);
     await associateContainer(configDir, project.id, "htb1", docker);
     expect(await textOf(configDir)).toBe(again);
-    expect((await readProjects(configDir))?.projects[0]?.containers).toEqual([
-      "kali-1",
-      "exegol-htb1",
-    ]);
+    const other = { listLabelPrefix: async () => [row("autre")] };
+    await associateContainer(configDir, project.id, "autre", other);
+    expect(await textOf(configDir)).toBe(again);
   });
 
-  it("associateContainer refuse un projet inconnu, un nom ambigu, et le 33e nom", async () => {
+  it("associateContainer refuse un projet inconnu et un nom ambigu sans écrire", async () => {
     const { configDir } = await setup();
     const project = await createProject(configDir, {
-      containers: ["kali-1"],
+      primary: "kali-1",
       name: "p",
       workspace: "/host/p",
     });
@@ -482,89 +480,100 @@ describe("écriture des projets", () => {
       params: { name: "htb1" },
     });
     expect(await textOf(configDir)).toBe(before);
-    const names = Array.from({ length: 32 }, (_, i) => `c${i}`);
-    await writeFile(
-      join(configDir, USER_PROJECT_FILE),
-      JSON.stringify({
-        activeId: project.id,
-        projects: [{ id: project.id, name: "p", workspace: "/host/p", containers: names }],
-      }),
-      "utf8",
-    );
-    const full = await textOf(configDir);
-    const docker = { listLabelPrefix: async () => [row("extra")] };
-    await expect(associateContainer(configDir, project.id, "extra", docker)).rejects.toMatchObject({
-      code: "project.invalid",
-    });
-    expect(await textOf(configDir)).toBe(full);
   });
 
-  it("dissociateContainer retire un nom stocké", async () => {
+  it("dissociateContainer efface primary s'il désigne ce conteneur, sinon rien", async () => {
     const { configDir } = await setup();
     const project = await createProject(configDir, {
-      containers: ["box"],
+      primary: "box-a",
       name: "p",
       workspace: "/host/p",
     });
-    const docker = { listLabelPrefix: async () => [row("box")] };
-    await associateContainer(configDir, project.id, "box", docker);
-    await dissociateContainer(configDir, project.id, "box");
-    expect((await readProjects(configDir))?.projects[0]?.containers).toEqual([]);
-    await dissociateContainer(configDir, project.id, "box");
-    await expect(dissociateContainer(configDir, OTHER, "box")).rejects.toMatchObject({
+    await dissociateContainer(configDir, project.id, "box-b");
+    expect((await readProjects(configDir))?.projects[0]?.primary).toBe("box-a");
+    await dissociateContainer(configDir, project.id, "box-a");
+    expect((await readProjects(configDir))?.projects[0]?.primary).toBeUndefined();
+    await dissociateContainer(configDir, project.id, "box-a");
+    await expect(dissociateContainer(configDir, OTHER, "box-a")).rejects.toMatchObject({
       code: "project.absent",
     });
   });
+});
 
-  it("dissociateContainer nettoie primary quand le conteneur retiré était désigné", async () => {
+describe("fiche v2 (ADR 0054)", () => {
+  const V1 = "00000000-0000-4000-8000-0000000000a1";
+  const writeV1 = (configDir: string, project: Record<string, unknown>) =>
+    writeFile(
+      join(configDir, USER_PROJECT_FILE),
+      JSON.stringify({
+        activeId: V1,
+        projects: [{ id: V1, name: "p", workspace: "/host/p", ...project }],
+      }),
+      "utf8",
+    );
+
+  it("lit une fiche v1 : primary ?? containers[0], containers ignoré", async () => {
     const { configDir } = await setup();
-    const project = await createProject(configDir, {
-      containers: ["box-a"],
-      name: "p",
-      workspace: "/host/p",
-    });
-    const docker = {
-      listLabelPrefix: async () => [row("box-a"), row("box-b")],
-    };
-    await associateContainer(configDir, project.id, "box-a", docker);
-    await associateContainer(configDir, project.id, "box-b", docker);
-    await setPrimaryContainer(configDir, project.id, "box-a");
-    await dissociateContainer(configDir, project.id, "box-a");
-    const file = await readProjects(configDir);
-    expect(file?.projects[0]).toMatchObject({ containers: ["box-b"] });
-    expect(file?.projects[0]?.primary).toBeUndefined();
+    await writeV1(configDir, { containers: ["kali-1", "kali-2"] });
+    const sans = (await readProjects(configDir))?.projects[0];
+    expect(sans).toEqual({ id: V1, name: "p", workspace: "/host/p", primary: "kali-1" });
+    await writeV1(configDir, { containers: ["kali-1", "kali-2"], primary: "kali-2" });
+    expect((await readProjects(configDir))?.projects[0]?.primary).toBe("kali-2");
+    await writeV1(configDir, { containers: [] });
+    expect((await readProjects(configDir))?.projects[0]).not.toHaveProperty("primary");
   });
 
-  it("dissociateContainer garde primary s'il désigne un autre conteneur", async () => {
+  it("une fiche v1 est réécrite sans containers", async () => {
     const { configDir } = await setup();
-    const project = await createProject(configDir, {
-      containers: ["kali-1"],
+    await writeV1(configDir, { containers: ["kali-1"] });
+    await renameProject(configDir, V1, "q");
+    const stored = JSON.parse(await textOf(configDir));
+    expect(stored.projects[0]).toEqual({
+      id: V1,
+      name: "q",
+      workspace: "/host/p",
+      primary: "kali-1",
+    });
+  });
+
+  it("lit une fiche v2 sans conteneur ; une v1 incohérente ou une v2 invalide est refusée", async () => {
+    const { configDir } = await setup();
+    await writeV1(configDir, {});
+    expect((await readProjects(configDir))?.projects[0]).toEqual({
+      id: V1,
       name: "p",
       workspace: "/host/p",
     });
-    const docker = {
-      listLabelPrefix: async () => [row("box-a"), row("box-b")],
-    };
-    await associateContainer(configDir, project.id, "box-a", docker);
-    await associateContainer(configDir, project.id, "box-b", docker);
-    await setPrimaryContainer(configDir, project.id, "box-b");
-    await dissociateContainer(configDir, project.id, "box-a");
-    const file = await readProjects(configDir);
-    expect(file?.projects[0]?.primary).toBe("box-b");
+    await writeV1(configDir, { primary: "box" });
+    expect((await readProjects(configDir))?.projects[0]?.primary).toBe("box");
+    await writeV1(configDir, { containers: ["a"], primary: "b" });
+    await expect(readProjects(configDir)).rejects.toMatchObject({ code: "project.invalid" });
+    await writeV1(configDir, { primary: "" });
+    await expect(readProjects(configDir)).rejects.toMatchObject({ code: "project.invalid" });
+  });
+
+  it("createProject sans conteneur ; containers v1 en entrée donne primary et n'est jamais stocké", async () => {
+    const { configDir } = await setup();
+    const a = await createProject(configDir, { name: "a", workspace: "/host/a" });
+    expect(a).not.toHaveProperty("primary");
+    const b = await createProject(configDir, {
+      name: "b",
+      workspace: "/host/b",
+      containers: ["kali-9"],
+    });
+    expect(b.primary).toBe("kali-9");
+    expect(await textOf(configDir)).not.toContain("containers");
   });
 });
 
 describe("setPrimaryContainer", () => {
-  it("fixe primary sur un membre de containers", async () => {
+  it("fixe primary sur n'importe quel nom valide (simple préférence)", async () => {
     const { configDir } = await setup();
     const project = await createProject(configDir, {
-      containers: ["kali-1"],
+      primary: "kali-1",
       name: "p",
       workspace: "/host/p",
     });
-    const docker = { listLabelPrefix: async () => [row("box-a"), row("box-b")] };
-    await associateContainer(configDir, project.id, "box-a", docker);
-    await associateContainer(configDir, project.id, "box-b", docker);
     await setPrimaryContainer(configDir, project.id, "box-b");
     expect((await readProjects(configDir))?.projects[0]?.primary).toBe("box-b");
   });
@@ -572,30 +581,24 @@ describe("setPrimaryContainer", () => {
   it("retire primary avec null", async () => {
     const { configDir } = await setup();
     const project = await createProject(configDir, {
-      containers: ["kali-1"],
+      primary: "kali-1",
       name: "p",
       workspace: "/host/p",
     });
-    const docker = { listLabelPrefix: async () => [row("box-a")] };
-    await associateContainer(configDir, project.id, "box-a", docker);
-    await setPrimaryContainer(configDir, project.id, "box-a");
     await setPrimaryContainer(configDir, project.id, null);
     expect((await readProjects(configDir))?.projects[0]?.primary).toBeUndefined();
   });
 
-  it("refuse un nom hors containers sans modifier le fichier", async () => {
+  it("refuse un nom invalide sans modifier le fichier", async () => {
     const { configDir } = await setup();
     const project = await createProject(configDir, {
-      containers: ["kali-1"],
+      primary: "kali-1",
       name: "p",
       workspace: "/host/p",
     });
-    const docker = { listLabelPrefix: async () => [row("box-a")] };
-    await associateContainer(configDir, project.id, "box-a", docker);
     const before = await textOf(configDir);
-    await expect(setPrimaryContainer(configDir, project.id, "inconnu")).rejects.toMatchObject({
-      code: "project.notFound",
-      params: { name: "inconnu" },
+    await expect(setPrimaryContainer(configDir, project.id, "a\0b")).rejects.toMatchObject({
+      code: "project.invalid",
     });
     expect(await textOf(configDir)).toBe(before);
   });
@@ -683,15 +686,9 @@ describe("status", () => {
     });
   });
 
-  it("ne lève pas avec plusieurs conteneurs liés : container null", async () => {
+  it("sans primary : container null même quand des conteneurs existent", async () => {
     const { docker, configDir } = await setup();
-    const project = await createProject(configDir, {
-      containers: ["kali-1"],
-      name: "p",
-      workspace: "/host/ws",
-    });
-    await associateContainer(configDir, project.id, "paused", docker);
-    await associateContainer(configDir, project.id, "with-ws", docker);
+    await createProject(configDir, { name: "p", workspace: "/host/ws" });
     expect(await status(configDir, docker)).toEqual({
       container: null,
       workspace: "/host/ws",

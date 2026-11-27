@@ -7,13 +7,13 @@ import type { DockerClient } from "./docker/client.js";
 import { lookupContainer, shortContainerName } from "./exegol/targets.js";
 import { capOutput } from "./output.js";
 import {
+  type ContainerMount,
   createProjectDirectory,
-  isInsideShare,
   moveDirectory,
   PROJECT_WORKSPACE_MAX,
+  prepareCommonRoot,
   prepareProjectWorkspace,
-  prepareRedwidowRoot,
-  projectsParent,
+  projectContainerPath,
   validateProjectFolder,
 } from "./project-workspace.js";
 import { CodedError } from "./reason.js";
@@ -53,16 +53,16 @@ const MAX_CREATE_NAME = 80;
 const PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 const FILE_KEYS = new Set(["activeId", "projects"]);
-const REQUIRED_PROJECT_KEYS = new Set(["id", "name", "workspace", "containers"]);
-const OPTIONAL_PROJECT_KEYS = new Set(["primary"]);
+/** Fiche v2 : `containers` n'existe plus ; une fiche v1 le porte encore et il est ignoré à la lecture. */
+const REQUIRED_PROJECT_KEYS = new Set(["id", "name", "workspace"]);
+const OPTIONAL_PROJECT_KEYS = new Set(["primary", "containers"]);
 const LEGACY_KEYS = new Set(["container", "workspace"]);
 
 export interface StoredProject {
   id: string;
   name: string;
   workspace: string;
-  containers: readonly string[];
-  /** Conteneur affiché (cockpit/CLI). Purement informatif : jamais lu à l'exécution. */
+  /** Conteneur par défaut (préférence). La visibilité se calcule depuis les montages (ADR 0054). */
   primary?: string;
 }
 
@@ -321,19 +321,18 @@ function parseStoredProject(raw: unknown): StoredProject {
   if (typeof raw.id !== "string" || !PROJECT_ID.test(raw.id)) throw invalidProject();
   if (typeof raw.name !== "string" || !validStoredName(raw.name)) throw invalidProject();
   if (!validWorkspace(raw.workspace)) throw invalidProject();
-  const containers = parseContainers(raw.containers);
+  // Fiche v1 : `containers` est validé puis écarté ; `primary ?? containers[0]` devient `primary`.
+  const legacy = "containers" in raw ? parseContainers(raw.containers) : [];
   let primary: string | undefined;
   if ("primary" in raw) {
-    if (typeof raw.primary !== "string" || !containers.includes(raw.primary)) {
-      throw invalidProject();
-    }
+    if (typeof raw.primary !== "string" || !validContainerName(raw.primary)) throw invalidProject();
+    if ("containers" in raw && !legacy.includes(raw.primary)) throw invalidProject();
     primary = raw.primary;
-  }
+  } else primary = legacy[0];
   return {
     id: raw.id,
     name: raw.name,
     workspace: raw.workspace,
-    containers,
     ...(primary !== undefined && { primary }),
   };
 }
@@ -363,7 +362,7 @@ async function migrateLegacy(
   if (!PROJECT_ID.test(id)) throw invalidProject();
   const file: ProjectFile = {
     activeId: id,
-    projects: [{ id, name, workspace, containers: [container] }],
+    projects: [{ id, name, workspace, primary: container }],
   };
   await writeProjectFile(configDir, file);
   await moveGlobalFindings(configDir, id);
@@ -422,35 +421,32 @@ function assertCreateWorkspace(workspace: string): void {
   }
 }
 
-/** Un projet exige au moins un conteneur, au nom valide (ADR 0053, point 4). */
-function assertContainers(containers: readonly string[]): void {
-  if (
-    !Array.isArray(containers) ||
-    containers.length < 1 ||
-    containers.length > MAX_CONTAINERS ||
-    !containers.every((c) => typeof c === "string" && validContainerName(c))
-  )
-    throw new CodedError("project.containerRequired");
-}
-
-/** Cible d'un projet : un conteneur et son dossier partagé (ADR 0053). */
-export interface ProjectContainerTarget {
-  container: string;
-  share: string;
+/** `primary` optionnel : un nom de conteneur valide, ou absent. */
+function assertPrimary(primary: unknown): void {
+  if (primary !== undefined && (typeof primary !== "string" || !validContainerName(primary)))
+    throw invalidProject();
 }
 
 /**
- * Crée un projet sans parler à Docker. `containers` est obligatoire (non vide) ;
- * le premier est `primary` sauf indication contraire.
+ * Crée un projet sans parler à Docker. Aucun conteneur requis (ADR 0054) ; `primary` est le
+ * conteneur par défaut, optionnel. `containers` (v1, déprécié) n'est lu que pour en déduire
+ * `primary` (premier nom) ; il n'est jamais stocké.
  * Sans projet actif, le nouveau le devient. Sinon l'actif ne change pas.
  */
 export async function createProject(
   configDir: string,
-  input: { name: string; workspace: string; containers: readonly string[]; primary?: string },
+  input: {
+    name: string;
+    workspace: string;
+    primary?: string;
+    /** Déprécié (fiche v1) : seul le premier nom sert, comme `primary`. */
+    containers?: readonly string[];
+  },
 ): Promise<StoredProject> {
   assertCreateName(input.name);
   assertCreateWorkspace(input.workspace);
-  assertContainers(input.containers);
+  const primary = input.primary ?? input.containers?.[0];
+  assertPrimary(primary);
   const file = await readProjects(configDir);
   if (file !== null && file.projects.length >= MAX_PROJECTS) throw invalidProject();
   const id = randomUUID();
@@ -459,8 +455,7 @@ export async function createProject(
     id,
     name: input.name,
     workspace: input.workspace,
-    containers: [...input.containers],
-    ...(input.primary !== undefined && { primary: input.primary }),
+    ...(primary !== undefined && { primary }),
   };
   const activeId = file === null || activeProject(file) === null ? id : file.activeId;
   const projects = file === null ? [project] : [...file.projects, project];
@@ -469,27 +464,23 @@ export async function createProject(
 }
 
 /**
- * Nouveau projet géré (ADR 0053) : valide avant le disque, prépare `<partage>/RedWidow`, réserve
- * `<partage>/RedWidow/projects/<slug>`, puis enregistre la fiche liée au conteneur.
+ * Nouveau projet géré (ADR 0054) : valide avant le disque, prépare la racine commune puis réserve
+ * `<racine>/projets/<slug>` (création exclusive, 0o700, sous-dossiers usuels) et enregistre la fiche.
+ * Aucun conteneur n'est requis ; `primary` est le conteneur par défaut, optionnel.
  */
 export async function createManagedProject(
   configDir: string,
   name: string,
-  target: ProjectContainerTarget,
+  root: string,
+  primary?: string,
 ): Promise<StoredProject> {
   assertCreateName(name);
-  assertContainers([target?.container]);
+  assertPrimary(primary);
   const file = await readProjects(configDir);
   if (file !== null && file.projects.length >= MAX_PROJECTS) throw invalidProject();
-  const share = await validateProjectFolder(target.share);
-  await prepareRedwidowRoot(share);
-  const workspace = await createProjectDirectory(name, projectsParent(share));
-  return createProject(configDir, {
-    name,
-    workspace,
-    containers: [target.container],
-    primary: target.container,
-  });
+  const dirs = await prepareCommonRoot(root);
+  const workspace = await createProjectDirectory(name, dirs.projects);
+  return createProject(configDir, { name, workspace, ...(primary !== undefined && { primary }) });
 }
 
 /** Chemin réel, ou le chemin tel quel si le dossier a disparu. */
@@ -512,29 +503,23 @@ async function assertFolderFree(file: ProjectFile | null, folder: string): Promi
 
 /**
  * Reprend un dossier existant comme projet (ADR 0052, point 2). Seuls les sous-dossiers usuels
- * manquants sont créés, sans rien écraser. Un dossier déjà enregistré est refusé.
+ * manquants sont créés, sans rien écraser. Un dossier déjà enregistré est refusé. Aucun conteneur
+ * requis : la visibilité se calcule depuis les montages (ADR 0054).
  */
 export async function adoptProjectDirectory(
   configDir: string,
   name: string,
   folder: unknown,
-  target: ProjectContainerTarget,
+  primary?: string,
 ): Promise<StoredProject> {
   assertCreateName(name);
-  assertContainers([target?.container]);
+  assertPrimary(primary);
   const workspace = await validateProjectFolder(folder);
-  const share = await validateProjectFolder(target.share);
-  if (!(await isInsideShare(share, workspace))) throw new CodedError("project.outsideShare");
   const file = await readProjects(configDir);
   if (file !== null && file.projects.length >= MAX_PROJECTS) throw invalidProject();
   await assertFolderFree(file, workspace);
   await prepareProjectWorkspace(workspace);
-  return createProject(configDir, {
-    name,
-    workspace,
-    containers: [target.container],
-    primary: target.container,
-  });
+  return createProject(configDir, { name, workspace, ...(primary !== undefined && { primary }) });
 }
 
 /** Dossier de données d'un projet : `<configDir>/projects/<id>/`. L'id est contrôlé. */
@@ -585,17 +570,15 @@ export async function moveProjectWorkspace(
 
 /**
  * Enregistre un projet importé : garde `id` s'il est un UUID v4 libre, sinon en attribue un.
- * Le dossier existe déjà (validé comme une reprise), sous le partage du conteneur (ADR 0053).
+ * Le dossier existe déjà (validé comme une reprise). Aucun conteneur requis (ADR 0054).
  */
 export async function registerImportedProject(
   configDir: string,
-  input: { id: string; name: string; workspace: string; container: string; share: string },
+  input: { id: string; name: string; workspace: string; primary?: string },
 ): Promise<{ project: StoredProject; idChanged: boolean }> {
   assertCreateName(input.name);
-  assertContainers([input.container]);
+  assertPrimary(input.primary);
   const workspace = await validateProjectFolder(input.workspace);
-  const share = await validateProjectFolder(input.share);
-  if (!(await isInsideShare(share, workspace))) throw new CodedError("project.outsideShare");
   const file = await readProjects(configDir);
   if (file !== null && file.projects.length >= MAX_PROJECTS) throw invalidProject();
   await assertFolderFree(file, workspace);
@@ -609,8 +592,7 @@ export async function registerImportedProject(
     id,
     name: input.name,
     workspace,
-    containers: [input.container],
-    primary: input.container,
+    ...(input.primary !== undefined && { primary: input.primary }),
   };
   const activeId = file === null || activeProject(file) === null ? id : file.activeId;
   await writeProjectFile(configDir, {
@@ -621,21 +603,26 @@ export async function registerImportedProject(
 }
 
 /**
- * Placement d'un projet (ADR 0053, point 8). `mounts` : nom de conteneur → dossier partagé relu par
- * l'hôte (`undefined` si le conteneur est absent ou sans montage). Comparaison lexicale, sans disque.
- * `noContainer` : aucun conteneur lié ; `outsideShare` : aucun partage lié ne contient le projet.
+ * Placement d'un projet (ADR 0054, point 3). `mounts` : nom de conteneur → montages bind relus par
+ * l'hôte. `ok` si au moins un conteneur de la map voit le dossier du projet ; sinon
+ * `noVisibleContainer`. Comparaison lexicale, sans disque.
  */
 export function projectPlacement(
-  project: Pick<StoredProject, "workspace" | "containers">,
-  mounts: ReadonlyMap<string, string | undefined>,
-): "ok" | "noContainer" | "outsideShare" {
-  if (project.containers.length === 0) return "noContainer";
+  project: Pick<StoredProject, "workspace">,
+  mounts: ReadonlyMap<string, readonly ContainerMount[]>,
+): "ok" | "noVisibleContainer" {
   const workspace = resolve(project.workspace);
-  for (const container of project.containers) {
-    const share = mounts.get(container);
-    if (share !== undefined && isInside(resolve(share), workspace, process.platform)) return "ok";
-  }
-  return "outsideShare";
+  for (const list of mounts.values())
+    if (projectContainerPath(workspace, list) !== undefined) return "ok";
+  return "noVisibleContainer";
+}
+
+/**
+ * Conteneurs nommés par la fiche : `primary` seul (transitoire, ADR 0054). Les appelants qui ont
+ * les lignes Docker doivent préférer la visibilité (`projectContainerPath`).
+ */
+export function projectContainerNames(project: Pick<StoredProject, "primary">): readonly string[] {
+  return project.primary === undefined ? [] : [project.primary];
 }
 
 /** Renomme la fiche sans changer son identité, son dossier ou ses associations. */
@@ -695,9 +682,9 @@ export async function unlink(configDir: string): Promise<void> {
 }
 
 /**
- * Ajoute le nom réel renvoyé par `lookupContainer` sur la liste (toute famille).
- * Absent ou ambigu : `project.notFound`. Déjà présent : rien. Au-delà de 32 : `project.invalid`.
- * Projet inconnu : `project.absent`. Le fichier n'est pas modifié en cas de refus.
+ * Désigne le conteneur par défaut (`primary`) s'il n'y en a pas : il n'y a plus de liste de
+ * conteneurs (ADR 0054), la visibilité se calcule depuis les montages. Nom absent ou ambigu côté
+ * Docker : `project.notFound`. Projet inconnu : `project.absent`. Un `primary` déjà posé est gardé.
  */
 export async function associateContainer(
   configDir: string,
@@ -711,17 +698,13 @@ export async function associateContainer(
   if (project === undefined) throw new CodedError("project.absent");
   const real = lookupContainer(name, await docker.listLabelPrefix());
   if (real === null) throw new CodedError("project.notFound", { name });
-  if (project.containers.includes(real)) return;
-  if (project.containers.length >= MAX_CONTAINERS) throw invalidProject();
-  const projects = file.projects.map((p) =>
-    p.id === projectId ? { ...p, containers: [...p.containers, real] } : p,
-  );
+  if (project.primary !== undefined) return;
+  const projects = file.projects.map((p) => (p.id === projectId ? { ...p, primary: real } : p));
   await writeProjectFile(configDir, { activeId: file.activeId, projects });
 }
 
 /**
- * Retire un nom stocké. Projet inconnu : `project.absent`. Nom absent : rien.
- * Si le nom retiré était `primary`, ce champ est nettoyé dans la même écriture.
+ * Efface `primary` s'il désigne `name`. Projet inconnu : `project.absent`. Autre nom : rien.
  */
 export async function dissociateContainer(
   configDir: string,
@@ -732,36 +715,31 @@ export async function dissociateContainer(
   if (file === null) throw new CodedError("project.absent");
   const project = file.projects.find((p) => p.id === projectId);
   if (project === undefined) throw new CodedError("project.absent");
-  if (!project.containers.includes(name)) return;
+  if (project.primary !== name) return;
   const projects = file.projects.map((p) => {
     if (p.id !== projectId) return p;
-    const containers = p.containers.filter((c) => c !== name);
-    const { primary, ...rest } = p;
-    return { ...rest, containers, ...(primary !== undefined && primary !== name && { primary }) };
+    const { primary: _primary, ...rest } = p;
+    return rest;
   });
   await writeProjectFile(configDir, { activeId: file.activeId, projects });
 }
 
-/** Nettoie toutes les associations après suppression Docker ; nouvel essai sans effet supplémentaire. */
+/** Efface `primary` des projets qui désignent ce conteneur après sa suppression ; sans effet au second essai. */
 export async function removeContainerAssociations(configDir: string, name: string): Promise<void> {
   const file = await readProjects(configDir);
-  if (file === null || !file.projects.some((p) => p.containers.includes(name))) return;
+  if (file === null || !file.projects.some((p) => p.primary === name)) return;
   const projects = file.projects.map((p) => {
-    if (!p.containers.includes(name)) return p;
-    const { primary, ...rest } = p;
-    return {
-      ...rest,
-      containers: p.containers.filter((container) => container !== name),
-      ...(primary !== undefined && primary !== name && { primary }),
-    };
+    if (p.primary !== name) return p;
+    const { primary: _primary, ...rest } = p;
+    return rest;
   });
   await writeProjectFile(configDir, { activeId: file.activeId, projects });
 }
 
 /**
- * Fixe ou retire le conteneur affiché (`primary`), purement informatif.
- * `name` doit appartenir à `containers` du projet, sinon `project.notFound` (fichier inchangé).
- * `null` efface le champ. Projet inconnu : `project.absent`.
+ * Fixe ou retire le conteneur par défaut (`primary`), simple préférence : il n'est pas exigé
+ * qu'il voie le projet. `null` efface le champ. Nom invalide : `project.invalid`.
+ * Projet inconnu : `project.absent`.
  */
 export async function setPrimaryContainer(
   configDir: string,
@@ -772,12 +750,10 @@ export async function setPrimaryContainer(
   if (file === null) throw new CodedError("project.absent");
   const project = file.projects.find((p) => p.id === projectId);
   if (project === undefined) throw new CodedError("project.absent");
-  if (name !== null && !project.containers.includes(name)) {
-    throw new CodedError("project.notFound", { name });
-  }
+  if (name !== null) assertPrimary(name);
   const projects = file.projects.map((p) => {
     if (p.id !== projectId) return p;
-    const { primary, ...rest } = p;
+    const { primary: _primary, ...rest } = p;
     return { ...rest, ...(name !== null && { primary: name }) };
   });
   await writeProjectFile(configDir, { activeId: file.activeId, projects });
@@ -813,7 +789,7 @@ export async function link(
     await createProject(configDir, {
       name: projectName,
       workspace: row.workspace,
-      containers: [row.name],
+      primary: row.name,
     });
   }
   const current = await readProjects(configDir);
@@ -825,9 +801,8 @@ export async function link(
 
 /**
  * État du projet actif. Sans projet actif : `project.absent`.
- * Conteneur affiché, dans l'ordre : `primary` s'il est posé, sinon l'unique conteneur lié,
- * sinon `null` (ainsi que `image`/`state`). `primary` n'influence aucune résolution d'exécution.
- * Un seul conteneur : image et état de cette ligne (`state: "absent"` si le nom n'existe plus).
+ * Conteneur affiché : `primary` s'il est posé, sinon `null` (ainsi que `image`/`state`).
+ * `primary` n'influence aucune résolution d'exécution (`state: "absent"` si le nom n'existe plus).
  */
 export async function status(
   configDir: string,
@@ -836,8 +811,7 @@ export async function status(
   const file = await readProjects(configDir);
   const active = file === null ? null : activeProject(file);
   if (active === null) throw new CodedError("project.absent");
-  const container =
-    active.primary ?? (active.containers.length === 1 ? active.containers[0] : undefined);
+  const container = active.primary;
   if (container === undefined) {
     return { container: null, workspace: active.workspace, image: null, state: null };
   }

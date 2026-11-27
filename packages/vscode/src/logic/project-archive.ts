@@ -482,8 +482,7 @@ export async function importProjectArchive(
       id,
       name: manifest.project.name,
       workspace: destination,
-      container: target.container,
-      share,
+      primary: target.container,
     });
     return { project, idChanged: project.id !== wanted };
   } catch (error) {

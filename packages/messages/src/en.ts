@@ -295,6 +295,8 @@ export const reasons: Catalog = {
     "a project only exists in a container: choose a container first",
   "project.outsideShare": () =>
     "this folder is not inside the container's shared folder: the container would not see the project",
+  "project.noVisibleContainer": (p) =>
+    `no running container sees project ${text(p.project)}: start or create a container whose mounts contain its folder`,
   "container.rootInvalid": () =>
     "containers root refused: it must be absolute, exist, avoid symbolic links and not expose a sensitive path",
   "project.folderAlreadyProject": (p) => `this folder is already project ${text(p.name)}`,

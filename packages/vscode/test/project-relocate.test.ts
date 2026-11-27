@@ -36,7 +36,6 @@ async function fixture() {
   const project = await createProject(config, {
     name: "Mission",
     workspace,
-    containers: ["exegol-old"],
     primary: "exegol-old",
   });
   const rows = [row("exegol-new", share), row("exegol-old", oldShare)];
@@ -65,7 +64,6 @@ it("confirmation donnée : projet déplacé sous le partage, conteneur lié et a
   expect(existsSync(f.workspace)).toBe(false);
   const stored = (await readProjects(f.config))?.projects.find((p) => p.id === f.project.id);
   expect(stored?.workspace).toBe(expected);
-  expect(stored?.containers).toEqual(["exegol-new"]);
   expect(stored?.primary).toBe("exegol-new");
 });
 
